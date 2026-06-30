@@ -8,6 +8,7 @@ import WorkOrderManager from "./components/WorkOrderManager";
 import MaterialRequestManager from "./components/MaterialRequestManager";
 import WarehouseManager from "./components/WarehouseManager";
 import CsharpSqlCenter from "./components/CsharpSqlCenter";
+import LoginForm from "./components/LoginForm";
 import { Wrench, Layers, LayoutDashboard, ShoppingBag, HardDrive, History, FileCode, Users, LogOut, CheckCircle2, ChevronRight, Menu, HelpCircle } from "lucide-react";
 
 export default function App() {
@@ -34,8 +35,23 @@ export default function App() {
       .then((res) => res.json())
       .then((data: User[]) => {
         setUsers(data);
-        // Default login as u1 (Cơ điện)
-        setCurrentUser(data[0] || null);
+        
+        // Read persisted login session
+        const savedUser = localStorage.getItem("sadico_user");
+        if (savedUser) {
+          try {
+            const parsed = JSON.parse(savedUser) as User;
+            const matched = data.find((u) => u.id === parsed.id);
+            if (matched) {
+              setCurrentUser(matched);
+              return;
+            }
+          } catch (e) {
+            console.error("Failed to parse saved user from localStorage:", e);
+          }
+        }
+        
+        setCurrentUser(null);
       })
       .catch((err) => console.error("Error loading mock users:", err));
 
@@ -86,12 +102,13 @@ export default function App() {
       fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: usr.username })
+        body: JSON.stringify({ username: usr.username, password: "sadico123" })
       })
         .then((res) => res.json())
         .then((data) => {
           if (data.success) {
             setCurrentUser(usr);
+            localStorage.setItem("sadico_user", JSON.stringify(usr));
             triggerNotification(`🔐 Đã giả lập phân quyền: ${usr.name} (${usr.role})`);
           }
         });
@@ -327,6 +344,19 @@ export default function App() {
     });
   };
 
+  if (!currentUser) {
+    return (
+      <LoginForm
+        users={users}
+        onLogin={(usr) => {
+          setCurrentUser(usr);
+          localStorage.setItem("sadico_user", JSON.stringify(usr));
+        }}
+        triggerNotification={triggerNotification}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900" id="sadico-app-container">
       {/* Dynamic Toast Notification Banner */}
@@ -353,23 +383,38 @@ export default function App() {
           </div>
 
           {/* Persistent Role Switcher / Simulator in Header */}
-          <div className="flex items-center gap-3 bg-slate-800 p-1.5 rounded-xl border border-slate-700 w-full md:w-auto">
-            <div className="flex items-center gap-1.5 px-2 text-slate-400 text-xs font-bold shrink-0">
-              <Users className="w-3.5 h-3.5" />
-              <span>GIAO DIỆN VAI TRÒ:</span>
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+            <div className="flex items-center gap-3 bg-slate-800 p-1.5 rounded-xl border border-slate-700 w-full md:w-auto">
+              <div className="flex items-center gap-1.5 px-2 text-slate-400 text-xs font-bold shrink-0">
+                <Users className="w-3.5 h-3.5" />
+                <span>GIAO DIỆN VAI TRÒ:</span>
+              </div>
+              <select
+                className="flex-1 md:flex-initial border-0 bg-transparent text-white font-bold text-xs focus:outline-none focus:ring-0 cursor-pointer pr-8 py-1 rounded"
+                value={currentUser?.id || ""}
+                onChange={(e) => handleRoleChange(e.target.value)}
+                id="role-simulator-header-select"
+              >
+                {users.map((u) => (
+                  <option key={u.id} value={u.id} className="bg-slate-900 text-white font-semibold">
+                    [{u.role.split(" ")[0]}] {u.name}
+                  </option>
+                ))}
+              </select>
             </div>
-            <select
-              className="flex-1 md:flex-initial border-0 bg-transparent text-white font-bold text-xs focus:outline-none focus:ring-0 cursor-pointer pr-8 py-1 rounded"
-              value={currentUser?.id || ""}
-              onChange={(e) => handleRoleChange(e.target.value)}
-              id="role-simulator-header-select"
+
+            <button
+              onClick={() => {
+                setCurrentUser(null);
+                localStorage.removeItem("sadico_user");
+                triggerNotification("🔒 Đã đăng xuất khỏi hệ thống.");
+              }}
+              className="w-full sm:w-auto flex items-center justify-center gap-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-bold px-3.5 py-2.5 rounded-xl transition duration-150 border border-red-700 shadow-sm"
+              id="header-logout-btn"
             >
-              {users.map((u) => (
-                <option key={u.id} value={u.id} className="bg-slate-900 text-white font-semibold">
-                  [{u.role.split(" ")[0]}] {u.name}
-                </option>
-              ))}
-            </select>
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Đăng xuất</span>
+            </button>
           </div>
         </div>
       </header>
