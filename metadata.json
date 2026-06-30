@@ -1,0 +1,6 @@
+{
+  "name": "SADICO CMMS",
+  "description": "Hệ thống Quản lý Bảo trì và Thiết bị cho Công ty Cổ phần SADICO",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
