@@ -222,7 +222,7 @@ export default function AdminUsers({
               activeSubTab === "users" ? "bg-indigo-600 text-white shadow-md" : "text-slate-400 hover:text-white"
             }`}
           >
-            Nhân Sự Vận Hành
+            Danh sách Nhân sự
           </button>
           <button
             onClick={() => {

@@ -1,0 +1,46 @@
+[
+  {
+    "id": "codien",
+    "name": "Kỹ thuật bảo trì (Cơ điện)",
+    "description": "Nhân viên kỹ thuật thực hiện chẩn đoán lỗi, bảo trì thiết bị và ghi nhận sửa chữa thực tế.",
+    "canManageDevices": true,
+    "canManageWorkOrders": true,
+    "canManageParts": false,
+    "canManageMaterials": false,
+    "canManageUsers": false,
+    "canViewAuditLogs": true
+  },
+  {
+    "id": "vattu",
+    "name": "Bộ phận Vật tư",
+    "description": "Thủ kho kiêm thu mua. Quản lý danh mục vật tư, số lượng tồn kho và mua sắm linh kiện thay thế.",
+    "canManageDevices": false,
+    "canManageWorkOrders": false,
+    "canManageParts": true,
+    "canManageMaterials": true,
+    "canManageUsers": false,
+    "canViewAuditLogs": true
+  },
+  {
+    "id": "truongca",
+    "name": "Trưởng ca",
+    "description": "Quản lý sản xuất, giám sát và duyệt các phiếu sửa chữa khẩn cấp, các yêu cầu vật tư hỗ trợ.",
+    "canManageDevices": true,
+    "canManageWorkOrders": true,
+    "canManageParts": true,
+    "canManageMaterials": true,
+    "canManageUsers": false,
+    "canViewAuditLogs": true
+  },
+  {
+    "id": "lanhdao",
+    "name": "Ban lãnh đạo",
+    "description": "Ban Giám đốc. Toàn quyền giám sát hệ thống, phê duyệt ngân sách và phân quyền bảo mật.",
+    "canManageDevices": true,
+    "canManageWorkOrders": true,
+    "canManageParts": true,
+    "canManageMaterials": true,
+    "canManageUsers": true,
+    "canViewAuditLogs": true
+  }
+]

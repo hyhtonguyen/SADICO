@@ -253,7 +253,15 @@ export default function App() {
             cost: mrItems.reduce((acc, curr) => {
               const matchedPart = parts.find(p => p.code === curr.partCode);
               return acc + (matchedPart ? matchedPart.price * curr.quantity : 0);
-            }, 0)
+            }, 0),
+            history: [
+              {
+                time: new Date().toISOString(),
+                user: currentUser?.name || "Kỹ thuật bảo trì",
+                action: "Tự động lập đề xuất",
+                details: `Thiết lập đề xuất tự động do thiếu hụt linh kiện sửa chữa cho thiết bị: ${newWO.deviceName}.`
+              }
+            ]
           };
 
           fetch(`/api/material-requests${userParam}`, {
@@ -331,7 +339,15 @@ export default function App() {
           reason: "Bù đắp dự phòng sản xuất tối thiểu."
         }
       ],
-      cost: part.price * 15
+      cost: part.price * 15,
+      history: [
+        {
+          time: new Date().toISOString(),
+          user: currentUser?.name || "Hệ thống",
+          action: "Lập đề xuất thủ công",
+          details: `Thiết lập đề xuất mua sắm linh kiện dự trữ cho: ${part.name}. Số lượng đề xuất: 15 cái.`
+        }
+      ]
     };
 
     fetch(`/api/material-requests${userParam}`, {
@@ -435,7 +451,7 @@ export default function App() {
         <aside className="w-full md:w-64 shrink-0 space-y-2">
           {/* Active profile banner */}
           <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-xs text-xs mb-4">
-            <span className="text-gray-400 block font-medium mb-0.5">Nhân sự vận hành:</span>
+            <span className="text-gray-400 block font-medium mb-0.5">Nhân sự đăng nhập:</span>
             <span className="font-bold text-slate-800 text-sm block leading-tight">{currentUser?.name}</span>
             <span className="text-[10px] text-indigo-600 font-semibold uppercase tracking-wider block mt-1.5 bg-indigo-50/50 px-2 py-0.5 rounded border border-indigo-100 w-fit">
               {currentUser?.role}

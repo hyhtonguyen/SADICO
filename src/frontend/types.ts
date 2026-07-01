@@ -149,6 +149,7 @@ export interface MaterialRequest {
     unit: string;
     notes?: string;
   }[];
+  history?: WorkOrderLog[];
 }
 
 export interface PreventiveMaintenancePlan {

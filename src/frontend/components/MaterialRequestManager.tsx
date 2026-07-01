@@ -46,11 +46,29 @@ export default function MaterialRequestManager({
   };
 
   const handleApprove = (req: MaterialRequest, approve: boolean) => {
+    const updatedHistory = req.history || [
+      {
+        time: req.date || new Date().toISOString(),
+        user: req.proposer || "Hệ thống",
+        action: "Lập đề xuất",
+        details: `Tạo đề xuất mua sắm linh kiện cho thiết bị ${req.deviceName || "Kho dự trữ"}.`
+      }
+    ];
+    const logEntry = {
+      time: new Date().toISOString(),
+      user: userName,
+      action: approve ? "Duyệt yêu cầu mua hàng" : "Từ chối yêu cầu mua hàng",
+      details: approve 
+        ? `Đã được trưởng ca phê duyệt phương án mua sắm gấp. Người duyệt: ${userName}. Ghi chú: Đồng ý phê duyệt.` 
+        : `Từ chối đề xuất mua sắm vật tư bởi ${userName}. Lý do: Bị từ chối do trùng lặp hoặc không cần thiết.`
+    };
+
     onUpdateMaterialRequest(req.id, {
       status: approve ? "Đã duyệt" : "Bị từ chối",
       approvedBy: userName,
       approvalDate: new Date().toISOString().split("T")[0],
-      procurementNotes: approve ? "Đã được trưởng ca phê duyệt phương án mua sắm gấp." : "Bị từ chối do trùng lặp hoặc không cần thiết."
+      procurementNotes: approve ? "Đã được trưởng ca phê duyệt phương án mua sắm gấp." : "Bị từ chối do trùng lặp hoặc không cần thiết.",
+      history: [...updatedHistory, logEntry]
     });
     setSelectedReq(null);
   };
@@ -66,10 +84,26 @@ export default function MaterialRequestManager({
     e.preventDefault();
     if (!selectedReq) return;
 
+    const updatedHistory = selectedReq.history || [
+      {
+        time: selectedReq.date || new Date().toISOString(),
+        user: selectedReq.proposer || "Hệ thống",
+        action: "Lập đề xuất",
+        details: `Tạo đề xuất mua sắm linh kiện cho thiết bị ${selectedReq.deviceName || "Kho dự trữ"}.`
+      }
+    ];
+    const logEntry = {
+      time: new Date().toISOString(),
+      user: userName,
+      action: "Đặt hàng (Lên đơn PO)",
+      details: `Tiến hành lên đơn đặt mua vật tư từ phòng thu mua. Ghi chú PO: [${poNotes}]. Ngày dự kiến hàng về: ${poDeliveryDate}`
+    };
+
     onUpdateMaterialRequest(selectedReq.id, {
       status: "Đang mua hàng",
       procurementNotes: poNotes,
-      deliveryDate: poDeliveryDate
+      deliveryDate: poDeliveryDate,
+      history: [...updatedHistory, logEntry]
     });
 
     setShowOrderModal(false);
@@ -96,6 +130,23 @@ export default function MaterialRequestManager({
     e.preventDefault();
     if (!selectedReq) return;
 
+    const updatedHistory = selectedReq.history || [
+      {
+        time: selectedReq.date || new Date().toISOString(),
+        user: selectedReq.proposer || "Hệ thống",
+        action: "Lập đề xuất",
+        details: `Tạo đề xuất mua sắm linh kiện cho thiết bị ${selectedReq.deviceName || "Kho dự trữ"}.`
+      }
+    ];
+
+    const itemsSummary = receiveItems.map(i => `${i.partName} (SL thực nhận: ${i.quantity} ${i.unit})`).join("; ");
+    const logEntry = {
+      time: new Date().toISOString(),
+      user: userName,
+      action: "Xác nhận Nhập kho",
+      details: `Đã đối chiếu & xác nhận bàn giao nhập kho thực tế thành công. Số hóa đơn/chứng từ: [${receiveInvoiceNo}]. Đối tác cung cấp: [${receiveSupplierName}]. Lưu trữ tại: [${receiveWarehouseName}]. Chi tiết hàng nhận: ${itemsSummary}. Ghi chú kiểm kho: ${receiveNotes}`
+    };
+
     onUpdateMaterialRequest(selectedReq.id, {
       status: "Đã giao hàng/Nhập kho",
       receptionDate: new Date().toISOString().split("T")[0],
@@ -104,7 +155,8 @@ export default function MaterialRequestManager({
       supplierName: receiveSupplierName,
       warehouseName: receiveWarehouseName,
       receptionNotes: receiveNotes,
-      actualItems: receiveItems
+      actualItems: receiveItems,
+      history: [...updatedHistory, logEntry]
     });
 
     setShowReceiveModal(false);
@@ -189,7 +241,11 @@ export default function MaterialRequestManager({
                   <span className="text-[10px] text-gray-400">{selectedReq.date}</span>
                 </div>
                 <h3 className="font-bold text-base leading-snug">Yêu cầu đặt mua linh kiện</h3>
-                <span className="text-xs text-slate-400 block mt-1">Liên quan phiếu sửa chữa: {selectedReq.workOrderId || "Không có"}</span>
+                <div className="space-y-0.5 mt-1 text-xs text-slate-400">
+                  <span className="block">Thiết bị: <strong className="text-white font-semibold">{selectedReq.deviceName || "Kho dự trữ trung tâm"}</strong></span>
+                  <span className="block">Phiếu sửa chữa: <strong className="text-white font-semibold">{selectedReq.workOrderId || "Không có (Đơn rời)"}</strong></span>
+                  <span className="block">Tổng giá trị dự kiến: <strong className="text-indigo-300 font-bold">{formatVND(selectedReq.cost)}</strong></span>
+                </div>
               </div>
 
               <div className="p-4 space-y-4 text-xs">
@@ -248,11 +304,77 @@ export default function MaterialRequestManager({
                     </div>
                   )}
                   {selectedReq.receptionDate && (
-                    <div className="flex items-center gap-1.5 text-emerald-800 font-bold bg-emerald-50 p-2 rounded-lg border border-emerald-100">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>Đã xác nhận nhập kho thành công: {selectedReq.receptionDate}</span>
+                    <div className="bg-emerald-50/50 border border-emerald-100 p-3 rounded-lg space-y-2">
+                      <div className="flex items-center gap-1.5 text-emerald-800 font-bold text-xs">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>Đã xác nhận nhập kho thành công: {selectedReq.receptionDate}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-700 border-t border-emerald-100 pt-2 font-medium">
+                        <div>
+                          <span className="text-gray-400 block font-normal text-[10px]">Người nhập kho:</span>
+                          <span className="font-bold">{selectedReq.receptionist}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-400 block font-normal text-[10px]">Kho tiếp nhận:</span>
+                          <span className="font-bold">{selectedReq.warehouseName}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-400 block font-normal text-[10px]">Nhà cung cấp:</span>
+                          <span className="font-bold">{selectedReq.supplierName || "Chưa ghi nhận"}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-400 block font-normal text-[10px]">Số chứng từ:</span>
+                          <span className="font-bold font-mono text-indigo-700">{selectedReq.invoiceNo || "Không có"}</span>
+                        </div>
+                      </div>
+                      {selectedReq.receptionNotes && (
+                        <div className="text-[11px] bg-white p-2 rounded border text-slate-600 mt-1">
+                          <strong className="text-slate-800 block mb-0.5 font-bold text-[10px]">Ghi chú bàn giao:</strong>
+                          {selectedReq.receptionNotes}
+                        </div>
+                      )}
+                      {selectedReq.actualItems && selectedReq.actualItems.length > 0 && (
+                        <div className="text-[11px] mt-2">
+                          <strong className="text-slate-800 block mb-1 font-bold text-[10px]">Chi tiết kiểm kê thực tế:</strong>
+                          <div className="space-y-1">
+                            {selectedReq.actualItems.map((ai, idx) => (
+                              <div key={idx} className="flex justify-between items-center bg-white p-1.5 px-2 rounded border text-[10px]">
+                                <span className="truncate max-w-[150px]">{ai.partName} <span className="text-gray-400 font-mono">({ai.partCode})</span></span>
+                                <span className="font-bold text-slate-800">SL: {ai.quantity} {ai.unit} {ai.notes ? `(${ai.notes})` : ""}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
+                </div>
+
+                {/* Chronological Traceability History Logs for Material Request */}
+                <div className="border-t border-gray-200 pt-4">
+                  <span className="text-gray-500 font-semibold block border-b pb-1 mb-2">📋 Lịch sử tiến trình chi tiết:</span>
+                  <div className="space-y-3 pl-1 max-h-52 overflow-y-auto pr-1">
+                    {(selectedReq.history && selectedReq.history.length > 0 ? selectedReq.history : [
+                      {
+                        time: selectedReq.date,
+                        user: selectedReq.proposer || "Hệ thống",
+                        action: "Lập đề xuất",
+                        details: `Đăng ký đề xuất mua sắm vật tư thành công. Tổng chi phí dự kiến: ${formatVND(selectedReq.cost)}`
+                      }
+                    ]).map((log, idx) => (
+                      <div key={idx} className="relative pl-4 border-l-2 border-indigo-500 pb-1 text-[11px]">
+                        <div className="absolute -left-[5px] top-1.5 w-2 h-2 rounded-full bg-indigo-600 ring-4 ring-indigo-50" />
+                        <div className="flex justify-between items-center text-[10px] text-gray-400 font-bold">
+                          <span>{log.action}</span>
+                          <span>{formatDate(log.time)}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-800 font-semibold mt-0.5">{log.details}</p>
+                        <span className="text-[9px] text-indigo-600 font-bold bg-indigo-50 px-1 rounded block w-max mt-0.5 uppercase">
+                          Thực hiện: {log.user}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 {/* ACTION TRIGGER CO-ORDINATORS (ROLE-BASED) */}

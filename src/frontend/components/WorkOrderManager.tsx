@@ -43,11 +43,18 @@ export default function WorkOrderManager({
   const [formTechnician, setFormTechnician] = useState("");
   const [formImageBefore, setFormImageBefore] = useState("");
   const [formPartsUsed, setFormPartsUsed] = useState<PartUsage[]>([]);
+  const [formFaultFinder, setFormFaultFinder] = useState(userName);
+  const [formFaultTime, setFormFaultTime] = useState(new Date().toISOString().slice(0, 16));
+
+  // Approval assignment states
+  const [approvalTechs, setApprovalTechs] = useState<string[]>([]);
+  const [approvalTargetCompletion, setApprovalTargetCompletion] = useState("");
 
   // Parts selector helpers
   const [selectedPartCode, setSelectedPartCode] = useState("");
   const [selectedPartQty, setSelectedPartQty] = useState(1);
   const [partFeedback, setPartFeedback] = useState("");
+  const [partSelectionTab, setPartSelectionTab] = useState<"device" | "others">("device");
 
   // Completed Details Form states
   const [compDuration, setCompDuration] = useState(2);
@@ -95,9 +102,18 @@ export default function WorkOrderManager({
       setFormImageBefore("");
       setFormPartsUsed([]);
       setFormAssignedTechnicians([]);
+      setFormFaultFinder(userName);
+      setFormFaultTime(new Date().toISOString().slice(0, 16));
       setShowAddModal(true);
     }
   }, [quickSelectedDevice]);
+
+  React.useEffect(() => {
+    if (selectedWO) {
+      setApprovalTargetCompletion(selectedWO.targetCompletion || "");
+      setApprovalTechs(selectedWO.assignedTechnicians || []);
+    }
+  }, [selectedWO]);
 
   // Filters
   const filteredWOs = workOrders.filter((w) => {
@@ -186,26 +202,22 @@ export default function WorkOrderManager({
       return;
     }
 
-    const finalTechStr = formAssignedTechnicians.length > 0
-      ? formAssignedTechnicians.map(id => usersList.find(u => u.id === id)?.name || id).join(", ")
-      : formTechnician || userName;
-
     onCreateWorkOrder({
       deviceId: formDeviceId,
       deviceName: dev.name,
       location: dev.location,
       creator: userName,
       department: dev.department,
-      faultTime: new Date().toISOString(),
-      faultFinder: userName,
+      faultTime: new Date(formFaultTime).toISOString(),
+      faultFinder: formFaultFinder,
       symptom: formSymptom,
       cause: formCause,
       proposedSolution: formProposedSolution,
       targetCompletion: formTargetCompletion || new Date().toISOString().split("T")[0],
-      technician: finalTechStr,
-      assignedTechnicians: formAssignedTechnicians,
+      technician: "Chưa phân công",
+      assignedTechnicians: [],
       status: "Chờ duyệt",
-      notes: "Khởi tạo phiếu thành công, gửi Trưởng ca phê duyệt.",
+      notes: "Tiếp nhận sự cố thành công, lập phiếu trình Trưởng ca duyệt.",
       partsUsed: formPartsUsed,
       cost: formPartsUsed.reduce((acc, p) => {
         const item = parts.find((x) => x.code === p.partCode);
@@ -216,8 +228,8 @@ export default function WorkOrderManager({
         {
           time: new Date().toISOString(),
           user: userName,
-          action: "Tạo phiếu sửa chữa",
-          details: `Gửi phê duyệt phương án. Người thực hiện: ${finalTechStr}`
+          action: "Lập phiếu sửa chữa",
+          details: `Tiếp nhận sự cố & Lập phiếu thành công. Đã gửi trình Trưởng ca duyệt.`
         }
       ]
     });
@@ -230,10 +242,6 @@ export default function WorkOrderManager({
     const dev = devices.find((d) => d.id === formDeviceId);
     if (!dev) return;
 
-    const finalTechStr = formAssignedTechnicians.length > 0
-      ? formAssignedTechnicians.map(id => usersList.find(u => u.id === id)?.name || id).join(", ")
-      : formTechnician || userName;
-
     // Create the Work Order with status "Chờ vật tư"
     const newWO: Omit<WorkOrder, "id" | "code" | "date"> = {
       deviceId: formDeviceId,
@@ -241,14 +249,14 @@ export default function WorkOrderManager({
       location: dev.location,
       creator: userName,
       department: dev.department,
-      faultTime: new Date().toISOString(),
-      faultFinder: userName,
+      faultTime: new Date(formFaultTime).toISOString(),
+      faultFinder: formFaultFinder,
       symptom: formSymptom,
       cause: formCause,
       proposedSolution: formProposedSolution,
       targetCompletion: formTargetCompletion || new Date().toISOString().split("T")[0],
-      technician: finalTechStr,
-      assignedTechnicians: formAssignedTechnicians,
+      technician: "Chưa phân công",
+      assignedTechnicians: [],
       status: "Chờ vật tư",
       notes: "Tạo phiếu thành công. Trạng thái 'Chờ vật tư' do thiếu hụt linh kiện trong kho.",
       partsUsed: formPartsUsed,
@@ -261,8 +269,8 @@ export default function WorkOrderManager({
         {
           time: new Date().toISOString(),
           user: userName,
-          action: "Tạo phiếu sửa chữa",
-          details: `Thiết lập trạng thái 'Chờ vật tư'. Thiết bị: ${dev.name}. Người thực hiện: ${finalTechStr}`
+          action: "Lập phiếu sửa chữa",
+          details: `Thiết lập trạng thái 'Chờ vật tư' do thiếu linh kiện. Đã lập phiếu gửi Trưởng ca.`
         }
       ]
     };
@@ -367,6 +375,41 @@ export default function WorkOrderManager({
     });
   };
 
+  const handleApproveAndAssign = (wo: WorkOrder) => {
+    if (approvalTechs.length === 0) {
+      alert("Vui lòng chọn ít nhất một kỹ thuật viên thực hiện!");
+      return;
+    }
+
+    const finalTechStr = approvalTechs.map(id => usersList.find(u => u.id === id)?.name || id).join(", ");
+    const updatedHistory = wo.history || [];
+    const logEntry = {
+      time: new Date().toISOString(),
+      user: userName,
+      action: "Phê duyệt & Phân công",
+      details: `Phê duyệt & phân công thực hiện cho: [${finalTechStr}]. Hạn hoàn thành: ${approvalTargetCompletion || wo.targetCompletion}`
+    };
+
+    onUpdateWorkOrder(wo.id, {
+      status: "Sẵn sàng thực hiện",
+      technician: finalTechStr,
+      assignedTechnicians: approvalTechs,
+      targetCompletion: approvalTargetCompletion || wo.targetCompletion,
+      notes: `Đã phê duyệt phiếu & phân công cho Kỹ thuật viên: [${finalTechStr}] bởi Trưởng ca ${userName}.`,
+      history: [...updatedHistory, logEntry]
+    });
+
+    setSelectedWO({
+      ...wo,
+      status: "Sẵn sàng thực hiện",
+      technician: finalTechStr,
+      assignedTechnicians: approvalTechs,
+      targetCompletion: approvalTargetCompletion || wo.targetCompletion,
+      notes: `Đã phê duyệt phiếu & phân công cho Kỹ thuật viên: [${finalTechStr}] bởi Trưởng ca ${userName}.`,
+      history: [...updatedHistory, logEntry]
+    });
+  };
+
   const handleSaveComplete = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedWO) return;
@@ -458,13 +501,16 @@ export default function WorkOrderManager({
             setFormTargetCompletion(new Date().toISOString().split("T")[0]);
             setFormPartsUsed([]);
             setPartFeedback("");
+            setPartSelectionTab("device");
+            setFormFaultFinder(userName);
+            setFormFaultTime(new Date().toISOString().slice(0, 16));
             setShowAddModal(true);
           }}
           className="ml-auto px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition"
           id="btn-create-workorder"
         >
           <Plus className="w-4 h-4 inline mr-1" />
-          Khai báo Phiếu Sửa Chữa
+          Tiếp nhận sự cố & Lập Phiếu sửa chữa
         </button>
       </div>
 
@@ -557,9 +603,27 @@ export default function WorkOrderManager({
 
               {/* WO Detailed Fields */}
               <div className="p-4 space-y-4 text-xs">
-                <div>
-                  <span className="text-gray-400 font-medium block">Người phát hiện & Thời gian:</span>
-                  <span className="font-semibold text-slate-800">{selectedWO.faultFinder} ({formatDate(selectedWO.faultTime)})</span>
+                <div className="grid grid-cols-2 gap-3 border-b pb-3 border-gray-100">
+                  <div>
+                    <span className="text-gray-400 font-medium block text-[10px]">Người báo sự cố:</span>
+                    <span className="font-semibold text-slate-800">{selectedWO.faultFinder}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 font-medium block text-[10px]">Thời gian sự cố:</span>
+                    <span className="font-semibold text-slate-800">{formatDate(selectedWO.faultTime)}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 font-medium block text-[10px]">Người lập phiếu:</span>
+                    <span className="font-semibold text-slate-800">{selectedWO.creator} ({selectedWO.department || "Kỹ thuật"})</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 font-medium block text-[10px]">Hạn hoàn thành:</span>
+                    <span className="font-semibold text-indigo-700 font-mono">{selectedWO.targetCompletion}</span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-gray-400 font-medium block text-[10px]">Kỹ thuật viên thực hiện:</span>
+                    <span className="font-bold text-slate-800">{selectedWO.technician || "Chưa phân công"}</span>
+                  </div>
                 </div>
 
                 <div>
@@ -630,12 +694,33 @@ export default function WorkOrderManager({
                   </div>
                 )}
 
+                {selectedWO.completedDate && (
+                  <div className="bg-indigo-50/50 border border-indigo-100 p-2.5 rounded-lg text-slate-800 space-y-1">
+                    <span className="font-bold text-indigo-900 block text-[10px] uppercase">🏆 Thông tin nghiệm thu hoàn thành:</span>
+                    <div className="grid grid-cols-2 gap-1.5 text-[11px] font-medium text-slate-700">
+                      <div>
+                        <span className="text-gray-400 block text-[10px]">Ngày hoàn tất:</span>
+                        <span className="font-bold text-slate-800">{selectedWO.completedDate}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-400 block text-[10px]">Thời gian thực tế:</span>
+                        <span className="font-bold text-slate-800">{selectedWO.durationHours || 0} giờ làm việc</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {selectedWO.notes && (
+                  <div className="bg-amber-50/50 border border-amber-100 p-2.5 rounded-lg text-amber-900">
+                    <span className="font-bold text-amber-800 block text-[10px] uppercase">📝 Nhật ký điều phối / Ghi chú:</span>
+                    <p className="text-[11px] leading-relaxed font-medium mt-0.5">{selectedWO.notes}</p>
+                  </div>
+                )}
+
                 <div>
                   <span className="text-gray-400 font-medium block">Chi phí bảo trì lũy kế:</span>
                   <span className="text-base font-bold text-slate-900">{formatVND(selectedWO.cost)}</span>
                 </div>
-
-                {/* Chronological Traceability History Logs */}
                 <div className="border-t border-gray-200 pt-4">
                   <span className="text-gray-500 font-semibold block border-b pb-1 mb-2">📋 Lịch sử tiến trình chi tiết:</span>
                   <div className="space-y-3 pl-1 max-h-52 overflow-y-auto pr-1">
@@ -693,23 +778,93 @@ export default function WorkOrderManager({
                     </button>
                   )}
 
-                  {selectedWO.status === "Chờ duyệt" && userRole === "Trưởng ca" && (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleTransitionStatus(selectedWO, "Sẵn sàng thực hiện")}
-                        className="flex-1 py-2 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 transition text-center"
-                        id="btn-transition-approve"
-                      >
-                        Phê Duyệt Sửa Chữa
-                      </button>
-                      <button
-                        onClick={() => handleTransitionStatus(selectedWO, "Nháp")}
-                        className="p-2 border border-rose-300 text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                        title="Từ chối, trả về nháp"
-                        id="btn-transition-reject"
-                      >
-                        Hủy
-                      </button>
+                  {selectedWO.status === "Chờ duyệt" && (userRole === "Trưởng ca" || userRole === "ADMIN") && (
+                    <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
+                      <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+                        <span className="font-bold text-slate-800 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                          📋 Phê duyệt & Phân công
+                        </span>
+                        <span className="text-[10px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-100 uppercase">
+                          Chờ duyệt
+                        </span>
+                      </div>
+
+                      {/* Technician Selection */}
+                      <div>
+                        <label className="block text-slate-600 font-bold text-[10px] mb-1">
+                          Kỹ thuật viên thực hiện (Cơ điện)
+                        </label>
+                        <div className="border border-gray-300 rounded-lg p-2.5 bg-white max-h-36 overflow-y-auto space-y-1.5">
+                          {(() => {
+                            const techniciansList = usersList.filter(u => 
+                              u.role === "Kỹ thuật bảo trì (Cơ điện)" || 
+                              u.role?.toLowerCase().includes("kỹ thuật") || 
+                              u.role?.toLowerCase().includes("bảo trì")
+                            );
+                            const finalTechList = techniciansList.length > 0 ? techniciansList : usersList;
+                            return finalTechList.map((user) => {
+                              const isChecked = approvalTechs.includes(user.id);
+                              return (
+                                <label key={user.id} className="flex items-center gap-2 cursor-pointer p-1 rounded hover:bg-slate-50">
+                                  <input
+                                    type="checkbox"
+                                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setApprovalTechs([...approvalTechs, user.id]);
+                                      } else {
+                                        setApprovalTechs(approvalTechs.filter(id => id !== user.id));
+                                      }
+                                    }}
+                                  />
+                                  <div>
+                                    <span className="font-semibold text-slate-800 text-xs">{user.name}</span>
+                                    <span className="text-[9px] text-indigo-600 ml-1.5 bg-indigo-50 px-1 py-0.2 rounded font-bold uppercase border border-indigo-100">
+                                      {user.role}
+                                    </span>
+                                  </div>
+                                </label>
+                              );
+                            });
+                          })()}
+                        </div>
+                      </div>
+
+                      {/* Expected Completion Date */}
+                      <div>
+                        <label className="block text-slate-600 font-bold text-[10px] mb-1">
+                          Hạn hoàn thành thực tế:
+                        </label>
+                        <input
+                          type="date"
+                          required
+                          className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-slate-800 bg-white text-xs"
+                          value={approvalTargetCompletion}
+                          onChange={(e) => setApprovalTargetCompletion(e.target.value)}
+                        />
+                      </div>
+
+                      {/* Submit / Action Buttons */}
+                      <div className="flex gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleApproveAndAssign(selectedWO)}
+                          className="flex-1 py-2 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 transition text-center text-xs flex items-center justify-center gap-1"
+                          id="btn-approve-and-assign"
+                        >
+                          Duyệt & Phân công
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleTransitionStatus(selectedWO, "Nháp")}
+                          className="px-3 py-2 border border-rose-300 text-rose-600 hover:bg-rose-50 rounded-lg font-bold transition text-xs"
+                          title="Từ chối yêu cầu, trả về nháp"
+                          id="btn-reject-approval"
+                        >
+                          Từ chối
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -775,7 +930,7 @@ export default function WorkOrderManager({
         <div className="fixed inset-0 z-50 bg-black/55 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl border border-gray-200 max-w-2xl w-full overflow-hidden">
             <div className="bg-slate-900 p-4 text-white flex justify-between items-center">
-              <h3 className="font-bold text-base">Khai báo Phiếu yêu cầu Sửa chữa & Bảo trì</h3>
+              <h3 className="font-bold text-base">Tiếp nhận sự cố & Lập Phiếu sửa chữa</h3>
               <button
                 onClick={() => {
                   setShowAddModal(false);
@@ -790,8 +945,8 @@ export default function WorkOrderManager({
 
             <form onSubmit={handleSaveWO} className="p-6 space-y-4 text-xs max-h-[80vh] overflow-y-auto">
               <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-gray-600 font-bold mb-1">Chọn thiết bị cần xử lý</label>
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="block text-gray-600 font-bold mb-1">Thiết bị</label>
                   <select
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-slate-800 bg-white font-medium"
                     value={formDeviceId}
@@ -803,84 +958,37 @@ export default function WorkOrderManager({
                   </select>
                 </div>
 
-                <div className="col-span-2">
-                  <label className="block text-gray-600 font-bold mb-1">Mô tả hiện tượng sự cố (Yêu cầu nhập thực tế)</label>
-                  <textarea
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="block text-gray-600 font-bold mb-1">Người báo sự cố (Nhập hoặc Chọn nhân viên)</label>
+                  <input
+                    type="text"
+                    list="production-users"
                     required
-                    rows={2}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-slate-800 font-medium"
-                    placeholder="Báo cáo hiện tượng, ví dụ: Van khí nén vòi 3 đóng không kín, xì hơi lớn..."
-                    value={formSymptom}
-                    onChange={(e) => setFormSymptom(e.target.value)}
+                    placeholder="Nhập họ tên hoặc chọn từ danh sách..."
+                    value={formFaultFinder}
+                    onChange={(e) => setFormFaultFinder(e.target.value)}
                   />
+                  <datalist id="production-users">
+                    {usersList.map((user) => (
+                      <option key={user.id} value={user.name}>{user.name} ({user.dept || "Sản xuất"})</option>
+                    ))}
+                  </datalist>
                 </div>
 
-                <div>
-                  <label className="block text-gray-600 font-bold mb-1">Nguyên nhân dự đoán</label>
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="block text-gray-600 font-bold mb-1">Thời gian tiếp nhận</label>
                   <input
-                    type="text"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-slate-800"
-                    placeholder="Do kẹt pít-tông, mòn gioăng cao su..."
-                    value={formCause}
-                    onChange={(e) => setFormCause(e.target.value)}
+                    type="datetime-local"
+                    required
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-slate-800 font-medium"
+                    value={formFaultTime}
+                    onChange={(e) => setFormFaultTime(e.target.value)}
                   />
                 </div>
 
-                <div>
-                  <label className="block text-gray-600 font-bold mb-1">Phương án khắc phục dự kiến</label>
-                  <input
-                    type="text"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-slate-800"
-                    placeholder="Thay thế Gioăng cao su hoặc thay mới cụm van SMC..."
-                    value={formProposedSolution}
-                    onChange={(e) => setFormProposedSolution(e.target.value)}
-                  />
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-gray-600 font-bold mb-1">Nhân sự thực hiện (Hệ thống Kỹ thuật bảo trì - Cơ điện)</label>
-                  <div className="border border-gray-300 rounded-lg p-3 bg-slate-50 max-h-36 overflow-y-auto space-y-2">
-                    {(() => {
-                      const techniciansList = usersList.filter(u => 
-                        u.role === "Kỹ thuật bảo trì (Cơ điện)" || 
-                        u.role?.toLowerCase().includes("kỹ thuật") || 
-                        u.role?.toLowerCase().includes("bảo trì")
-                      );
-                      const finalTechList = techniciansList.length > 0 ? techniciansList : usersList;
-                      return finalTechList.map((user) => {
-                        const isChecked = formAssignedTechnicians.includes(user.id);
-                        return (
-                          <label key={user.id} className="flex items-center gap-2 cursor-pointer p-1.5 hover:bg-slate-100 rounded">
-                            <input
-                              type="checkbox"
-                              className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                              checked={isChecked}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setFormAssignedTechnicians([...formAssignedTechnicians, user.id]);
-                                } else {
-                                  setFormAssignedTechnicians(formAssignedTechnicians.filter(id => id !== user.id));
-                                }
-                              }}
-                            />
-                            <div>
-                              <span className="font-bold text-slate-800">{user.name}</span>
-                              <span className="text-[10px] text-indigo-600 ml-2 bg-indigo-50 px-1.5 py-0.5 rounded font-bold uppercase border border-indigo-100">
-                                {user.role}
-                              </span>
-                            </div>
-                          </label>
-                        );
-                      });
-                    })()}
-                    {usersList.length === 0 && (
-                      <span className="text-gray-400 italic">Đang tải danh sách tài khoản cơ điện...</span>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-gray-600 font-bold mb-1 font-vietnamese">Hạn hoàn thành dự kiến</label>
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="block text-gray-600 font-bold mb-1">Đề xuất thời gian hoàn thành</label>
                   <input
                     type="date"
                     required
@@ -891,7 +999,19 @@ export default function WorkOrderManager({
                 </div>
 
                 <div className="col-span-2">
-                  <label className="block text-gray-600 font-bold mb-1">Ảnh hiện trường sự cố (Tải lên trước sửa chữa)</label>
+                  <label className="block text-gray-600 font-bold mb-1">Hiện tượng</label>
+                  <textarea
+                    required
+                    rows={2}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-slate-800 font-medium"
+                    placeholder="Báo cáo hiện tượng, ví dụ: Van khí nén vòi 3 đóng không kín, xì hơi lớn..."
+                    value={formSymptom}
+                    onChange={(e) => setFormSymptom(e.target.value)}
+                  />
+                </div>
+
+                <div className="col-span-2">
+                  <label className="block text-gray-600 font-bold mb-1">Ảnh hiện trường</label>
                   <div className="flex items-center gap-3">
                     <input
                       type="file"
@@ -905,7 +1025,7 @@ export default function WorkOrderManager({
                       className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 text-xs font-semibold"
                     >
                       <Camera className="w-4 h-4 text-slate-500" />
-                      <span>Chọn ảnh hiện trường</span>
+                      <span>Tải lên ảnh hiện trường</span>
                     </label>
                     {formImageBefore && (
                       <span className="text-emerald-600 font-bold flex items-center gap-1">
@@ -914,31 +1034,100 @@ export default function WorkOrderManager({
                     )}
                   </div>
                 </div>
+
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="block text-gray-600 font-bold mb-1">Nguyên nhân sơ bộ</label>
+                  <input
+                    type="text"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-slate-800"
+                    placeholder="Do kẹt pít-tông, mòn gioăng cao su..."
+                    value={formCause}
+                    onChange={(e) => setFormCause(e.target.value)}
+                  />
+                </div>
+
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="block text-gray-600 font-bold mb-1">Phương án xử lý dự kiến</label>
+                  <input
+                    type="text"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-slate-800"
+                    placeholder="Thay thế Gioăng cao su hoặc thay mới cụm van SMC..."
+                    value={formProposedSolution}
+                    onChange={(e) => setFormProposedSolution(e.target.value)}
+                  />
+                </div>
               </div>
 
               {/* Dynamic Parts Selector Engine */}
               <div className="border-t border-gray-200 pt-4 space-y-3">
                 <span className="block text-slate-800 font-bold text-xs">🛠️ Chọn linh kiện thay thế thiết bị:</span>
-                <div className="flex gap-2 items-center bg-slate-50 p-3 rounded-lg border border-slate-200">
+
+                {/* Tab segmented buttons lifted above the input row */}
+                <div className="flex bg-slate-100 rounded-lg p-0.5 max-w-sm border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPartSelectionTab("device");
+                      setSelectedPartCode("");
+                    }}
+                    className={`flex-1 py-1 text-center font-bold text-[10px] rounded-md transition ${
+                      partSelectionTab === "device"
+                        ? "bg-white text-indigo-700 shadow-sm"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    ⚙️ Linh kiện riêng của máy ({parts.filter((p) => p.deviceId === formDeviceId || p.deviceIds?.includes(formDeviceId)).length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPartSelectionTab("others");
+                      setSelectedPartCode("");
+                    }}
+                    className={`flex-1 py-1 text-center font-bold text-[10px] rounded-md transition ${
+                      partSelectionTab === "others"
+                        ? "bg-white text-indigo-700 shadow-sm"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    📦 Các linh kiện khác ({parts.filter((p) => p.deviceId !== formDeviceId && !p.deviceIds?.includes(formDeviceId)).length})
+                  </button>
+                </div>
+
+                <div className="flex gap-2 items-end bg-slate-50 p-3 rounded-lg border border-slate-200">
                   <div className="flex-1">
-                    <label className="block text-gray-500 text-[10px] mb-0.5">Tên linh kiện</label>
+                    <label className="block text-gray-500 text-[10px] mb-1">
+                      {partSelectionTab === "device" ? "Linh kiện riêng được gán cho máy này" : "Các linh kiện khác còn lại trong kho"}
+                    </label>
                     <select
-                      className="w-full border border-gray-300 rounded-md p-1.5 bg-white text-slate-800 text-xs font-medium"
+                      className="w-full border border-gray-300 rounded-md px-2 h-8 bg-white text-slate-800 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500"
                       value={selectedPartCode}
                       onChange={(e) => setSelectedPartCode(e.target.value)}
                     >
-                      <option value="">-- Chọn linh kiện trong kho --</option>
-                      {parts.map((p) => (
-                        <option key={p.code} value={p.code}>[{p.code}] {p.name} (Còn {p.stock} cái)</option>
-                      ))}
+                      <option value="">
+                        {partSelectionTab === "device"
+                          ? "-- Chọn linh kiện riêng của máy --"
+                          : "-- Chọn các linh kiện khác --"}
+                      </option>
+                      {parts
+                        .filter((p) =>
+                          partSelectionTab === "device"
+                            ? p.deviceId === formDeviceId || p.deviceIds?.includes(formDeviceId)
+                            : p.deviceId !== formDeviceId && !p.deviceIds?.includes(formDeviceId)
+                        )
+                        .map((p) => (
+                          <option key={p.code} value={p.code}>
+                            [{p.code}] {p.name} (Còn {p.stock} {p.unit || "cái"})
+                          </option>
+                        ))}
                     </select>
                   </div>
-                  <div className="w-20">
-                    <label className="block text-gray-500 text-[10px] mb-0.5">Số lượng</label>
+                  <div className="w-20 shrink-0">
+                    <label className="block text-gray-500 text-[10px] mb-1">Số lượng</label>
                     <input
                       type="number"
                       min="1"
-                      className="w-full border border-gray-300 rounded-md p-1.5 text-center text-slate-800 font-bold text-xs"
+                      className="w-full border border-gray-300 rounded-md h-8 text-center text-slate-800 font-bold text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
                       value={selectedPartQty}
                       onChange={(e) => setSelectedPartQty(Number(e.target.value))}
                     />
@@ -946,7 +1135,7 @@ export default function WorkOrderManager({
                   <button
                     type="button"
                     onClick={handleAddPartRow}
-                    className="self-end px-3 py-2 bg-slate-900 text-white rounded-md font-bold hover:bg-slate-800 text-xs"
+                    className="px-4 h-8 bg-slate-900 text-white rounded-md font-bold hover:bg-slate-800 text-xs flex items-center justify-center shrink-0 transition"
                     id="btn-add-part-to-wo"
                   >
                     Thêm
@@ -1016,7 +1205,7 @@ export default function WorkOrderManager({
                   className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700"
                   id="btn-confirm-save-wo"
                 >
-                  Đăng Ký & Phát Hành Phiếu
+                  Trình Trưởng ca duyệt
                 </button>
               </div>
             </form>

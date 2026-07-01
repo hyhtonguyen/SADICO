@@ -25,6 +25,7 @@ export default function PartManager({
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [deviceFilter, setDeviceFilter] = useState("All");
+  const [typeFilter, setTypeFilter] = useState("All"); // All, New, Recovered
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -54,10 +55,14 @@ export default function PartManager({
   const filteredParts = parts.filter((p) => {
     const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           p.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          p.serial.toLowerCase().includes(searchTerm.toLowerCase());
+                          p.serial.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (p.recoveredFrom && p.recoveredFrom.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesCategory = categoryFilter === "All" || p.category === categoryFilter;
     const matchesDevice = deviceFilter === "All" || p.deviceId === deviceFilter || p.deviceIds?.includes(deviceFilter);
-    return matchesSearch && matchesCategory && matchesDevice;
+    const matchesType = typeFilter === "All" ||
+                        (typeFilter === "Recovered" && p.isRecovered) ||
+                        (typeFilter === "New" && !p.isRecovered);
+    return matchesSearch && matchesCategory && matchesDevice && matchesType;
   });
 
   const handleOpenAdd = () => {
@@ -236,6 +241,21 @@ PART-O12,Dầu mỡ bôi trơn bánh răng Kluber,KLUB-GRA-50,Vật tư Trung t�
             </select>
           </div>
 
+          {/* Type / Recovered filter */}
+          <div className="flex items-center gap-1.5 text-xs">
+            <span className="text-gray-500 font-medium">Nguồn gốc:</span>
+            <select
+              className="border border-gray-300 rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 bg-white"
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              id="part-type-filter"
+            >
+              <option value="All">Tất cả vật tư</option>
+              <option value="New">Vật tư mới</option>
+              <option value="Recovered">♻️ Chỉ vật tư thu hồi</option>
+            </select>
+          </div>
+
           {/* Import from Excel button */}
           {(userRole === "Bộ phận Vật tư" || userRole === "Trưởng ca") && (
             <button
@@ -301,7 +321,19 @@ PART-O12,Dầu mỡ bôi trơn bánh răng Kluber,KLUB-GRA-50,Vật tư Trung t�
                       <td className="py-3.5 px-4">
                         <div>
                           <span className="font-semibold text-slate-950 block">{part.name}</span>
-                          <span className="text-[10px] text-gray-400 font-medium">Xuất xứ: {part.origin || "-"} | Màu: {part.color || "-"}</span>
+                          <span className="text-[10px] text-gray-400 font-medium block">Xuất xứ: {part.origin || "-"} | Màu: {part.color || "-"}</span>
+                          {part.isRecovered && (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5 shadow-2xs">
+                                ♻️ Thu hồi từ phiếu: {part.recoveredFrom || "Hệ thống"}
+                              </span>
+                              {part.recoveredWarehouse && (
+                                <span className="bg-amber-100 text-amber-800 text-[9px] font-semibold px-1.5 py-0.5 rounded shadow-2xs">
+                                  Kho lưu: {part.recoveredWarehouse}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td className="py-3.5 px-4 font-mono text-gray-500">{part.serial || "-"}</td>

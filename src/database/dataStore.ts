@@ -78,17 +78,6 @@ export const INITIAL_ROLES: RoleDetails[] = [
     canManageMaterials: true,
     canManageUsers: true,
     canViewAuditLogs: true
-  },
-  {
-    id: "operator",
-    name: "Người vận hành",
-    description: "Nhân viên trực tiếp vận hành thiết bị tại nhà máy. Khai báo sự cố phát sinh khẩn cấp.",
-    canManageDevices: false,
-    canManageWorkOrders: true,
-    canManageParts: false,
-    canManageMaterials: false,
-    canManageUsers: false,
-    canViewAuditLogs: false
   }
 ];
 
@@ -96,8 +85,7 @@ export const INITIAL_USERS: User[] = [
   { id: "u1", username: "codien1", password: "123456", name: "Nguyễn Văn Hùng", roleId: "codien", role: "Kỹ thuật bảo trì (Cơ điện)", dept: "Tổ Cơ điện", roleDetails: INITIAL_ROLES[0] },
   { id: "u2", username: "vattu1", password: "123456", name: "Lê Thị Lan", roleId: "vattu", role: "Bộ phận Vật tư", dept: "Phòng Vật tư", roleDetails: INITIAL_ROLES[1] },
   { id: "u3", username: "truongca1", password: "123456", name: "Trần Minh Đức", roleId: "truongca", role: "Trưởng ca", dept: "Ban Quản lý Sản xuất", roleDetails: INITIAL_ROLES[2] },
-  { id: "u4", username: "lanhdao1", password: "123456", name: "Phạm Việt Hoàng", roleId: "lanhdao", role: "Ban lãnh đạo", dept: "Ban Giám đốc", roleDetails: INITIAL_ROLES[3] },
-  { id: "u5", username: "operator1", password: "123456", name: "Nguyễn Văn Máy", roleId: "operator", role: "Người vận hành", dept: "Tổ Vận hành lò nung", roleDetails: INITIAL_ROLES[4] }
+  { id: "u4", username: "lanhdao1", password: "123456", name: "Phạm Việt Hoàng", roleId: "lanhdao", role: "Ban lãnh đạo", dept: "Ban Giám đốc", roleDetails: INITIAL_ROLES[3] }
 ];
 
 export const INITIAL_DEVICES: Device[] = [
