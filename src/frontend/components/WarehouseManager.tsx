@@ -10,9 +10,17 @@ interface WarehouseManagerProps {
 
 export default function WarehouseManager({ parts, auditLogs }: WarehouseManagerProps) {
   const [activeType, setActiveType] = useState<"Vật tư sửa chữa" | "Vật tư Trung tâm sản xuất">("Vật tư sửa chữa");
+  const [subTab, setSubTab] = useState<"all" | "recovered">("all");
 
   const filteredParts = parts.filter((p) => p.category === activeType);
   const lowStockCount = parts.filter((p) => p.stock < p.minStock).length;
+
+  const displayParts = filteredParts.filter((p) => {
+    if (subTab === "recovered") {
+      return p.isRecovered === true;
+    }
+    return !p.isRecovered;
+  });
 
   // Filter logs related to stock transactions (Import, Export, stock decrements)
   const stockLogs = auditLogs.filter((log) => {
@@ -52,7 +60,10 @@ export default function WarehouseManager({ parts, auditLogs }: WarehouseManagerP
       {/* Selector switches */}
       <div className="flex border-b border-gray-200 p-1 bg-slate-100 rounded-xl max-w-md gap-1">
         <button
-          onClick={() => setActiveType("Vật tư sửa chữa")}
+          onClick={() => {
+            setActiveType("Vật tư sửa chữa");
+            setSubTab("all");
+          }}
           className={`flex-1 py-2 rounded-lg text-xs font-bold transition ${
             activeType === "Vật tư sửa chữa"
               ? "bg-indigo-600 text-white shadow-xs"
@@ -63,7 +74,10 @@ export default function WarehouseManager({ parts, auditLogs }: WarehouseManagerP
           VẬT TƯ SỬA CHỮA BẢO TRÌ
         </button>
         <button
-          onClick={() => setActiveType("Vật tư Trung tâm sản xuất")}
+          onClick={() => {
+            setActiveType("Vật tư Trung tâm sản xuất");
+            setSubTab("all");
+          }}
           className={`flex-1 py-2 rounded-lg text-xs font-bold transition ${
             activeType === "Vật tư Trung tâm sản xuất"
               ? "bg-indigo-600 text-white shadow-xs"
@@ -79,8 +93,36 @@ export default function WarehouseManager({ parts, auditLogs }: WarehouseManagerP
         {/* Parts listings */}
         <div className="lg:col-span-2 space-y-4">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="p-4 bg-slate-50 border-b border-gray-200 flex justify-between items-center">
-              <span className="font-bold text-slate-800 text-sm uppercase">{activeType} ({filteredParts.length})</span>
+            <div className="p-4 bg-slate-50 border-b border-gray-200">
+              <div className="flex justify-between items-center mb-3">
+                <span className="font-bold text-slate-800 text-sm uppercase">{activeType}</span>
+              </div>
+              
+              {/* Sub tabs inside activeType */}
+              <div className="flex border-b border-gray-250 bg-slate-100 p-1 rounded-lg gap-1 max-w-sm">
+                <button
+                  type="button"
+                  onClick={() => setSubTab("all")}
+                  className={`flex-1 py-1 px-3 rounded-md text-xs font-bold transition ${
+                    subTab === "all"
+                      ? "bg-white text-slate-800 shadow-xs border border-gray-200"
+                      : "text-slate-500 hover:bg-slate-200"
+                  }`}
+                >
+                  Tồn kho chung ({filteredParts.filter(p => !p.isRecovered).length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSubTab("recovered")}
+                  className={`flex-1 py-1 px-3 rounded-md text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                    subTab === "recovered"
+                      ? "bg-indigo-50 text-indigo-700 shadow-xs border border-indigo-100 font-extrabold"
+                      : "text-slate-500 hover:bg-slate-200"
+                  }`}
+                >
+                  ♻️ Thu hồi ({filteredParts.filter(p => p.isRecovered).length})
+                </button>
+              </div>
             </div>
 
             <table className="w-full text-left text-xs">
@@ -89,15 +131,24 @@ export default function WarehouseManager({ parts, auditLogs }: WarehouseManagerP
                   <th className="py-2.5 px-4">Mã số</th>
                   <th className="py-2.5 px-4">Tên linh kiện</th>
                   <th className="py-2.5 px-4 text-center">Tồn thực tế</th>
-                  <th className="py-2.5 px-4 text-center">Mức an toàn tối thiểu</th>
-                  <th className="py-2.5 px-4 text-right">Chi phí ước tính</th>
+                  {subTab === "recovered" ? (
+                    <>
+                      <th className="py-2.5 px-4">Thu hồi từ nguồn</th>
+                      <th className="py-2.5 px-4">Kho lưu trữ thu hồi</th>
+                    </>
+                  ) : (
+                    <>
+                      <th className="py-2.5 px-4 text-center">Mức an toàn tối thiểu</th>
+                      <th className="py-2.5 px-4 text-right">Chi phí ước tính</th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-150">
-                {filteredParts.map((p) => {
+                {displayParts.map((p) => {
                   const isLow = p.stock < p.minStock;
                   return (
-                    <tr key={p.code} className={`hover:bg-slate-50 ${isLow ? "bg-rose-50/25" : ""}`}>
+                    <tr key={p.code} className={`hover:bg-slate-50 ${isLow && subTab !== "recovered" ? "bg-rose-50/25" : ""}`}>
                       <td className="py-3 px-4 font-mono font-bold text-slate-700">{p.code}</td>
                       <td className="py-3 px-4">
                         <div>
@@ -107,13 +158,28 @@ export default function WarehouseManager({ parts, auditLogs }: WarehouseManagerP
                       </td>
                       <td className="py-3 px-4 text-center">
                         <span className={`px-2.5 py-0.5 rounded font-bold ${
-                          isLow ? "bg-rose-100 text-rose-800 font-bold" : "bg-emerald-50 text-emerald-800"
+                          isLow && subTab !== "recovered" ? "bg-rose-100 text-rose-800 font-bold" : "bg-emerald-50 text-emerald-800"
                         }`}>
                           {p.stock} {p.unit}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-center font-bold text-slate-400">{p.minStock} {p.unit}</td>
-                      <td className="py-3 px-4 text-right font-bold text-slate-800">{formatVND(p.price)}</td>
+                      {subTab === "recovered" ? (
+                        <>
+                          <td className="py-3 px-4 text-slate-700 font-medium">
+                            <span className="px-1.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-100 rounded text-[10px] font-bold uppercase">
+                              {p.recoveredFrom || "Phiếu hệ thống"}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-slate-700 font-bold">
+                            {p.recoveredWarehouse || "Kho Vật Tư Trung Tâm"}
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="py-3 px-4 text-center font-bold text-slate-400">{p.minStock} {p.unit}</td>
+                          <td className="py-3 px-4 text-right font-bold text-slate-800">{formatVND(p.price)}</td>
+                        </>
+                      )}
                     </tr>
                   );
                 })}

@@ -4,15 +4,35 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SadicoCmms.Models
 {
+    [Table("Roles")]
+    public class Role
+    {
+        [Key]
+        public string Id { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public bool CanManageDevices { get; set; } = false;
+        public bool CanManageWorkOrders { get; set; } = false;
+        public bool CanManageParts { get; set; } = false;
+        public bool CanManageMaterials { get; set; } = false;
+        public bool CanManageUsers { get; set; } = false;
+        public bool CanViewAuditLogs { get; set; } = true;
+    }
+
     [Table("Users")]
     public class User
     {
         [Key]
         public string Id { get; set; } = string.Empty;
         public string Username { get; set; } = string.Empty;
+        public string Password { get; set; } = "123456";
         public string Name { get; set; } = string.Empty;
+        public string RoleId { get; set; } = string.Empty;
         public string Role { get; set; } = string.Empty;
         public string Dept { get; set; } = string.Empty;
+
+        [ForeignKey("RoleId")]
+        public Role? RoleDetails { get; set; }
     }
 
     [Table("Devices")]

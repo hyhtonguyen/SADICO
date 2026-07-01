@@ -56,8 +56,9 @@ export default function LoginForm({ users, onLogin, triggerNotification }: Login
   };
 
   const handleQuickLogin = (demoUser: User) => {
+    const userPass = demoUser.password || "123456";
     setUsername(demoUser.username);
-    setPassword("sadico123");
+    setPassword(userPass);
     setError(null);
 
     // Auto trigger submission with small delay for visual feedback
@@ -66,7 +67,7 @@ export default function LoginForm({ users, onLogin, triggerNotification }: Login
       fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: demoUser.username, password: "sadico123" }),
+        body: JSON.stringify({ username: demoUser.username, password: userPass }),
       })
         .then((res) => res.json())
         .then((data) => {
@@ -161,7 +162,7 @@ export default function LoginForm({ users, onLogin, triggerNotification }: Login
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Mật khẩu (mặc định: sadico123)"
+                    placeholder="Mật khẩu (mặc định: 123456 hoặc sadico123)"
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl py-2.5 px-4 pr-11 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition duration-150"
                     disabled={loading}
                   />

@@ -53,8 +53,38 @@ export default function WorkOrderManager({
   const [compDuration, setCompDuration] = useState(2);
   const [compCost, setCompCost] = useState(0);
   const [compRecovered, setCompRecovered] = useState("");
+  const [compRecoveredWarehouse, setCompRecoveredWarehouse] = useState("Kho Vật Tư Trung Tâm");
+  const [compRecoveredQty, setCompRecoveredQty] = useState(1);
+  const [compRecoveredPart, setCompRecoveredPart] = useState("");
   const [compImageAfter, setCompImageAfter] = useState("");
   const [showCompleteModal, setShowCompleteModal] = useState(false);
+
+  // Dynamic users and tech list states
+  const [usersList, setUsersList] = useState<any[]>([]);
+  const [formAssignedTechnicians, setFormAssignedTechnicians] = useState<string[]>([]);
+
+  // Reassignment sub-states
+  const [showReassignModal, setShowReassignModal] = useState(false);
+  const [reassignWOId, setReassignWOId] = useState("");
+  const [reassignTechs, setReassignTechs] = useState<string[]>([]);
+  const [reassignReason, setReassignReason] = useState("");
+
+  // Insufficient stock popup states inside Add Work Order
+  const [showInsufficientStockPopup, setShowInsufficientStockPopup] = useState(false);
+  const [insufficientItemsList, setInsufficientItemsList] = useState<any[]>([]);
+  const [procurementReason, setProcurementReason] = useState("Mua vật tư phục vụ phiếu sửa chữa khẩn cấp.");
+  const [procurementQtyMap, setProcurementQtyMap] = useState<{[code: string]: number}>({});
+
+  React.useEffect(() => {
+    fetch("/api/users")
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setUsersList(data);
+        }
+      })
+      .catch(err => console.error("Error fetching users:", err));
+  }, []);
 
   React.useEffect(() => {
     if (quickSelectedDevice) {
@@ -64,6 +94,7 @@ export default function WorkOrderManager({
       setFormTechnician(userName);
       setFormImageBefore("");
       setFormPartsUsed([]);
+      setFormAssignedTechnicians([]);
       setShowAddModal(true);
     }
   }, [quickSelectedDevice]);
@@ -130,22 +161,34 @@ export default function WorkOrderManager({
     const dev = devices.find((d) => d.id === formDeviceId);
     if (!dev) return;
 
-    // Determine initial status based on stock pre-verification
-    let initialStatus: WorkOrderStatus = "Nháp";
-    let isStockDeficient = false;
+    // Check deficient items
+    const deficient = formPartsUsed.map(item => {
+      const p = parts.find(x => x.code === item.partCode);
+      const stock = p ? p.stock : 0;
+      return {
+        partCode: item.partCode,
+        partName: item.partName,
+        required: item.quantity,
+        stock: stock,
+        deficit: item.quantity - stock,
+        unit: p ? p.unit : "Cái"
+      };
+    }).filter(item => item.deficit > 0);
 
-    formPartsUsed.forEach((item) => {
-      const partObj = parts.find((p) => p.code === item.partCode);
-      if (partObj && item.quantity > partObj.stock) {
-        isStockDeficient = true;
-      }
-    });
-
-    if (isStockDeficient) {
-      initialStatus = "Chờ vật tư";
-    } else {
-      initialStatus = "Chờ duyệt"; // default to submit for approval
+    if (deficient.length > 0) {
+      setInsufficientItemsList(deficient);
+      const qMap: {[code: string]: number} = {};
+      deficient.forEach(item => {
+        qMap[item.partCode] = item.deficit * 2; // Default to buying double the deficit
+      });
+      setProcurementQtyMap(qMap);
+      setShowInsufficientStockPopup(true);
+      return;
     }
+
+    const finalTechStr = formAssignedTechnicians.length > 0
+      ? formAssignedTechnicians.map(id => usersList.find(u => u.id === id)?.name || id).join(", ")
+      : formTechnician || userName;
 
     onCreateWorkOrder({
       deviceId: formDeviceId,
@@ -159,44 +202,228 @@ export default function WorkOrderManager({
       cause: formCause,
       proposedSolution: formProposedSolution,
       targetCompletion: formTargetCompletion || new Date().toISOString().split("T")[0],
-      technician: formTechnician || userName,
-      status: initialStatus,
-      notes: isStockDeficient ? "Tự động thiết lập Chờ vật tư do thiếu hụt linh kiện trong kho." : "Chờ trưởng ca phê duyệt phương án.",
+      technician: finalTechStr,
+      assignedTechnicians: formAssignedTechnicians,
+      status: "Chờ duyệt",
+      notes: "Khởi tạo phiếu thành công, gửi Trưởng ca phê duyệt.",
       partsUsed: formPartsUsed,
       cost: formPartsUsed.reduce((acc, p) => {
         const item = parts.find((x) => x.code === p.partCode);
         return acc + (item ? item.price * p.quantity : 0);
       }, 0),
-      recoveredMaterials: ""
+      recoveredMaterials: "",
+      history: [
+        {
+          time: new Date().toISOString(),
+          user: userName,
+          action: "Tạo phiếu sửa chữa",
+          details: `Gửi phê duyệt phương án. Người thực hiện: ${finalTechStr}`
+        }
+      ]
     });
 
     setShowAddModal(false);
     onClearQuickSelectedDevice();
   };
 
-  const handleTransitionStatus = (wo: WorkOrder, target: WorkOrderStatus) => {
-    onUpdateWorkOrder(wo.id, {
-      status: target,
-      notes: `Trạng thái cập nhật bởi ${userName} (${userRole}) thành ${target}`
-    });
-    // Auto select updated
-    setSelectedWO({ ...wo, status: target });
+  const handleConfirmProcurementAndSaveWO = (createRequest: boolean) => {
+    const dev = devices.find((d) => d.id === formDeviceId);
+    if (!dev) return;
+
+    const finalTechStr = formAssignedTechnicians.length > 0
+      ? formAssignedTechnicians.map(id => usersList.find(u => u.id === id)?.name || id).join(", ")
+      : formTechnician || userName;
+
+    // Create the Work Order with status "Chờ vật tư"
+    const newWO: Omit<WorkOrder, "id" | "code" | "date"> = {
+      deviceId: formDeviceId,
+      deviceName: dev.name,
+      location: dev.location,
+      creator: userName,
+      department: dev.department,
+      faultTime: new Date().toISOString(),
+      faultFinder: userName,
+      symptom: formSymptom,
+      cause: formCause,
+      proposedSolution: formProposedSolution,
+      targetCompletion: formTargetCompletion || new Date().toISOString().split("T")[0],
+      technician: finalTechStr,
+      assignedTechnicians: formAssignedTechnicians,
+      status: "Chờ vật tư",
+      notes: "Tạo phiếu thành công. Trạng thái 'Chờ vật tư' do thiếu hụt linh kiện trong kho.",
+      partsUsed: formPartsUsed,
+      cost: formPartsUsed.reduce((acc, p) => {
+        const item = parts.find((x) => x.code === p.partCode);
+        return acc + (item ? item.price * p.quantity : 0);
+      }, 0),
+      recoveredMaterials: "",
+      history: [
+        {
+          time: new Date().toISOString(),
+          user: userName,
+          action: "Tạo phiếu sửa chữa",
+          details: `Thiết lập trạng thái 'Chờ vật tư'. Thiết bị: ${dev.name}. Người thực hiện: ${finalTechStr}`
+        }
+      ]
+    };
+
+    if (createRequest) {
+      const itemsToRequest = insufficientItemsList.map(item => ({
+        partCode: item.partCode,
+        partName: item.partName,
+        quantity: procurementQtyMap[item.partCode] || item.deficit,
+        unit: item.unit,
+        reason: `Cần cho phiếu sửa chữa khẩn cấp ${dev.name} (${item.partCode})`
+      }));
+
+      const reqBody = {
+        proposer: userName,
+        reason: procurementReason,
+        items: itemsToRequest,
+        deviceName: dev.name,
+        deviceId: dev.id
+      };
+
+      fetch("/api/material-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(reqBody)
+      })
+      .then(res => res.json())
+      .then(data => {
+        newWO.notes += ` Đã tự động lập phiếu yêu cầu mua vật tư ${data.code || ""} gửi Trưởng ca duyệt.`;
+        newWO.history?.push({
+          time: new Date().toISOString(),
+          user: userName,
+          action: "Tự động tạo phiếu mua hàng",
+          details: `Tạo phiếu yêu cầu mua vật tư ${data.code || ""} cho các linh kiện thiếu hụt.`
+        });
+        onCreateWorkOrder(newWO);
+      })
+      .catch(err => {
+        console.error("Error creating material request:", err);
+        onCreateWorkOrder(newWO);
+      });
+    } else {
+      onCreateWorkOrder(newWO);
+    }
+
+    setShowInsufficientStockPopup(false);
+    setShowAddModal(false);
+    onClearQuickSelectedDevice();
   };
 
-  // Submit complete
+  const handleReassignTechnicians = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedWO) return;
+
+    const newTechNames = reassignTechs.map(id => usersList.find(u => u.id === id)?.name || id).join(", ");
+    const updatedHistory = selectedWO.history || [];
+    const logEntry = {
+      time: new Date().toISOString(),
+      user: userName,
+      action: "Điều chuyển nhân sự",
+      details: `Thay đổi người thực hiện thành: [${newTechNames}]. Lý do: ${reassignReason || "Điều động sản xuất"}`
+    };
+
+    onUpdateWorkOrder(selectedWO.id, {
+      assignedTechnicians: reassignTechs,
+      technician: newTechNames,
+      history: [...updatedHistory, logEntry],
+      notes: `Đã thay đổi nhân sự thực hiện: ${newTechNames}. Lý do: ${reassignReason}`
+    });
+
+    setSelectedWO({
+      ...selectedWO,
+      assignedTechnicians: reassignTechs,
+      technician: newTechNames,
+      history: [...updatedHistory, logEntry],
+      notes: `Đã thay đổi nhân sự thực hiện: ${newTechNames}. Lý do: ${reassignReason}`
+    });
+
+    setShowReassignModal(false);
+    setReassignReason("");
+  };
+
+  const handleTransitionStatus = (wo: WorkOrder, target: WorkOrderStatus) => {
+    const updatedHistory = wo.history || [];
+    const logEntry = {
+      time: new Date().toISOString(),
+      user: userName,
+      action: "Cập nhật trạng thái",
+      details: `Chuyển trạng thái từ [${wo.status}] sang [${target}]`
+    };
+
+    onUpdateWorkOrder(wo.id, {
+      status: target,
+      notes: `Trạng thái cập nhật bởi ${userName} (${userRole}) thành ${target}`,
+      history: [...updatedHistory, logEntry]
+    });
+
+    setSelectedWO({
+      ...wo,
+      status: target,
+      history: [...updatedHistory, logEntry]
+    });
+  };
+
   const handleSaveComplete = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedWO) return;
+
+    const updatedHistory = selectedWO.history || [];
+    const logEntry = {
+      time: new Date().toISOString(),
+      user: userName,
+      action: "Hoàn thành sửa chữa",
+      details: `Khai báo hoàn tất sửa chữa. Thời gian thực hiện: ${compDuration} giờ. Chi phí phát sinh: ${compCost} VND. Vật tư thu hồi: ${compRecovered || "Không có"}. Trả về: ${compRecoveredWarehouse}`
+    };
 
     onUpdateWorkOrder(selectedWO.id, {
       status: "Hoàn thành",
       completedDate: new Date().toISOString().split("T")[0],
       durationHours: Number(compDuration),
       cost: selectedWO.cost + Number(compCost),
-      recoveredMaterials: compRecovered,
+      recoveredMaterials: compRecovered || "Không có",
       imageAfter: compImageAfter,
-      notes: `Đã hoàn thành sửa chữa. Thời gian thực hiện: ${compDuration} giờ. Vật tư thu hồi: ${compRecovered}`
+      notes: `Đã hoàn thành sửa chữa. Thời gian thực hiện: ${compDuration} giờ. Vật tư thu hồi: ${compRecovered || "Không có"}. Kho lưu trữ: ${compRecoveredWarehouse}`,
+      history: [...updatedHistory, logEntry]
     });
+
+    if (compRecoveredPart) {
+      const originalPart = parts.find(p => p.code === compRecoveredPart);
+      if (originalPart) {
+        const recPartBody = {
+          code: `${compRecoveredPart}-REC-${Date.now().toString().slice(-4)}`,
+          name: `[Thu Hồi] ${originalPart.name}`,
+          serial: originalPart.serial || "CHUNG",
+          category: originalPart.category || "Vật tư sửa chữa",
+          stock: Number(compRecoveredQty),
+          minStock: 0,
+          lifecycleMonths: originalPart.lifecycleMonths || 12,
+          unit: originalPart.unit || "Cái",
+          price: originalPart.price || 0,
+          origin: originalPart.origin,
+          color: originalPart.color,
+          deviceId: selectedWO.deviceId,
+          deviceIds: [selectedWO.deviceId],
+          isRecovered: true,
+          recoveredFrom: selectedWO.code,
+          recoveredWarehouse: compRecoveredWarehouse
+        };
+
+        fetch("/api/parts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(recPartBody)
+        })
+        .then(res => res.json())
+        .then(() => {
+          console.log("Recovered part registered successfully");
+        })
+        .catch(err => console.error("Error saving recovered part:", err));
+      }
+    }
 
     setShowCompleteModal(false);
     setSelectedWO(null);
@@ -408,8 +635,53 @@ export default function WorkOrderManager({
                   <span className="text-base font-bold text-slate-900">{formatVND(selectedWO.cost)}</span>
                 </div>
 
+                {/* Chronological Traceability History Logs */}
+                <div className="border-t border-gray-200 pt-4">
+                  <span className="text-gray-500 font-semibold block border-b pb-1 mb-2">📋 Lịch sử tiến trình chi tiết:</span>
+                  <div className="space-y-3 pl-1 max-h-52 overflow-y-auto pr-1">
+                    {(selectedWO.history && selectedWO.history.length > 0 ? selectedWO.history : [
+                      {
+                        time: selectedWO.faultTime || selectedWO.date,
+                        user: selectedWO.creator || "Hệ thống",
+                        action: "Khai báo sự cố",
+                        details: `Đăng ký phiếu thành công. Kỹ thuật viên ban đầu: ${selectedWO.technician}`
+                      }
+                    ]).map((log, idx) => (
+                      <div key={idx} className="relative pl-4 border-l-2 border-indigo-500 pb-1">
+                        <div className="absolute -left-[5px] top-1.5 w-2 h-2 rounded-full bg-indigo-600 ring-4 ring-indigo-50" />
+                        <div className="flex justify-between items-center text-[10px] text-gray-400 font-bold">
+                          <span>{log.action}</span>
+                          <span>{formatDate(log.time)}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-800 font-semibold mt-0.5">{log.details}</p>
+                        <span className="text-[9px] text-indigo-600 font-bold bg-indigo-50 px-1 rounded block w-max mt-0.5 uppercase">
+                          Thực hiện: {log.user}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 {/* STATE TRANSITION FLOW TRIGGERS (ROLE-BASED AUTHORIZATION) */}
                 <div className="pt-4 border-t border-gray-150 space-y-2">
+                  {/* Supervisor Personnel Reassignment approved button */}
+                  {(userRole === "Trưởng ca" || userRole === "ADMIN") && 
+                   selectedWO.status !== "Hoàn thành" && 
+                   selectedWO.status !== "Đóng phiếu" && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReassignWOId(selectedWO.id);
+                        setReassignTechs(selectedWO.assignedTechnicians || []);
+                        setReassignReason("");
+                        setShowReassignModal(true);
+                      }}
+                      className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg border border-slate-300 transition text-center flex items-center justify-center gap-1.5 text-[11px] mb-2"
+                    >
+                      <span>🔄 Điều chuyển nhân sự bảo trì</span>
+                    </button>
+                  )}
+
                   {/* Transition actions */}
                   {selectedWO.status === "Nháp" && userRole === "Kỹ thuật bảo trì (Cơ điện)" && (
                     <button
@@ -457,6 +729,9 @@ export default function WorkOrderManager({
                         setCompDuration(2);
                         setCompCost(0);
                         setCompRecovered("");
+                        setCompRecoveredPart("");
+                        setCompRecoveredQty(1);
+                        setCompRecoveredWarehouse("Kho Vật Tư Trung Tâm");
                         setCompImageAfter("");
                         setShowCompleteModal(true);
                       }}
@@ -562,15 +837,46 @@ export default function WorkOrderManager({
                   />
                 </div>
 
-                <div>
-                  <label className="block text-gray-600 font-bold mb-1">Người thực hiện (Được điều phối)</label>
-                  <input
-                    type="text"
-                    required
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-slate-800 bg-slate-50 font-bold"
-                    value={formTechnician}
-                    onChange={(e) => setFormTechnician(e.target.value)}
-                  />
+                <div className="col-span-2">
+                  <label className="block text-gray-600 font-bold mb-1">Nhân sự thực hiện (Hệ thống Kỹ thuật bảo trì - Cơ điện)</label>
+                  <div className="border border-gray-300 rounded-lg p-3 bg-slate-50 max-h-36 overflow-y-auto space-y-2">
+                    {(() => {
+                      const techniciansList = usersList.filter(u => 
+                        u.role === "Kỹ thuật bảo trì (Cơ điện)" || 
+                        u.role?.toLowerCase().includes("kỹ thuật") || 
+                        u.role?.toLowerCase().includes("bảo trì")
+                      );
+                      const finalTechList = techniciansList.length > 0 ? techniciansList : usersList;
+                      return finalTechList.map((user) => {
+                        const isChecked = formAssignedTechnicians.includes(user.id);
+                        return (
+                          <label key={user.id} className="flex items-center gap-2 cursor-pointer p-1.5 hover:bg-slate-100 rounded">
+                            <input
+                              type="checkbox"
+                              className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFormAssignedTechnicians([...formAssignedTechnicians, user.id]);
+                                } else {
+                                  setFormAssignedTechnicians(formAssignedTechnicians.filter(id => id !== user.id));
+                                }
+                              }}
+                            />
+                            <div>
+                              <span className="font-bold text-slate-800">{user.name}</span>
+                              <span className="text-[10px] text-indigo-600 ml-2 bg-indigo-50 px-1.5 py-0.5 rounded font-bold uppercase border border-indigo-100">
+                                {user.role}
+                              </span>
+                            </div>
+                          </label>
+                        );
+                      });
+                    })()}
+                    {usersList.length === 0 && (
+                      <span className="text-gray-400 italic">Đang tải danh sách tài khoản cơ điện...</span>
+                    )}
+                  </div>
                 </div>
 
                 <div>
@@ -661,27 +967,33 @@ export default function WorkOrderManager({
                         <tr className="border-b border-gray-200 bg-slate-50 font-semibold text-slate-500 uppercase tracking-wider text-[10px]">
                           <th className="py-2 px-3">Mã vật tư</th>
                           <th className="py-2 px-3">Tên vật tư</th>
+                          <th className="py-2 px-3 text-center">Tồn kho</th>
                           <th className="py-2 px-3 text-center">Yêu cầu</th>
                           <th className="py-2 px-3 text-center">Thao tác</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-150">
-                        {formPartsUsed.map((item, idx) => (
-                          <tr key={idx}>
-                            <td className="py-2 px-3 font-mono font-bold text-slate-700">{item.partCode}</td>
-                            <td className="py-2 px-3 font-medium text-slate-900">{item.partName}</td>
-                            <td className="py-2 px-3 text-center font-bold text-slate-800">{item.quantity} cái</td>
-                            <td className="py-2 px-3 text-center">
-                              <button
-                                type="button"
-                                onClick={() => handleRemovePartRow(item.partCode)}
-                                className="text-rose-600 hover:text-rose-800"
-                              >
-                                Xóa
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
+                        {formPartsUsed.map((item, idx) => {
+                          const partObj = parts.find(p => p.code === item.partCode);
+                          const currentStock = partObj ? partObj.stock : 0;
+                          return (
+                            <tr key={idx}>
+                              <td className="py-2 px-3 font-mono font-bold text-slate-700">{item.partCode}</td>
+                              <td className="py-2 px-3 font-medium text-slate-900">{item.partName}</td>
+                              <td className="py-2 px-3 text-center font-bold text-slate-500 bg-slate-50">{currentStock} {partObj?.unit || "cái"}</td>
+                              <td className="py-2 px-3 text-center font-bold text-slate-800">{item.quantity} {partObj?.unit || "cái"}</td>
+                              <td className="py-2 px-3 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemovePartRow(item.partCode)}
+                                  className="text-rose-600 hover:text-rose-800"
+                                >
+                                  Xóa
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -748,15 +1060,59 @@ export default function WorkOrderManager({
               </div>
 
               <div>
-                <label className="block text-gray-600 font-bold mb-1">Đánh dấu Vật tư thu hồi (Trả về kho vật tư tái chế)</label>
+                <label className="block text-gray-600 font-bold mb-1">Mô tả vật tư thu hồi (Ghi chú tự do)</label>
                 <input
                   type="text"
                   required
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-slate-800"
-                  placeholder="Ví dụ: 1 Cảm biến Autonics cũ mờ hỏng, gioăng cũ..."
+                  placeholder="Ví dụ: 1 Cảm biến Autonics cũ mờ hỏng, gioăng cao su cũ..."
                   value={compRecovered}
                   onChange={(e) => setCompRecovered(e.target.value)}
                 />
+              </div>
+
+              <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-3">
+                <span className="block text-slate-800 font-bold text-[11px] uppercase border-b pb-1">
+                  ♻️ Khai báo vật tư nhập kho thu hồi:
+                </span>
+                
+                <div>
+                  <label className="block text-gray-500 text-[10px] mb-1 font-bold">Lọc mã linh kiện cần thu hồi</label>
+                  <select
+                    className="w-full border border-gray-300 rounded p-1.5 bg-white text-slate-800 font-medium"
+                    value={compRecoveredPart}
+                    onChange={(e) => setCompRecoveredPart(e.target.value)}
+                  >
+                    <option value="">-- Không đăng ký linh kiện thu hồi cụ thể --</option>
+                    {parts.map((p) => (
+                      <option key={p.code} value={p.code}>[{p.code}] {p.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-gray-500 text-[10px] mb-1 font-bold">Số lượng thu hồi</label>
+                    <input
+                      type="number"
+                      min="1"
+                      className="w-full border border-gray-300 rounded p-1 text-center font-bold text-slate-800"
+                      value={compRecoveredQty}
+                      onChange={(e) => setCompRecoveredQty(Number(e.target.value))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-500 text-[10px] mb-1 font-bold">Phạm vi kho thu hồi</label>
+                    <select
+                      className="w-full border border-gray-300 rounded p-1 bg-white text-slate-800 font-bold text-[11px]"
+                      value={compRecoveredWarehouse}
+                      onChange={(e) => setCompRecoveredWarehouse(e.target.value)}
+                    >
+                      <option value="Kho Vật Tư Trung Tâm">Vật tư sửa chữa (Kho TT)</option>
+                      <option value="Kho Vật Tư Dự Phòng Xưởng">Vật tư Trung tâm sản xuất</option>
+                    </select>
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -993,6 +1349,175 @@ export default function WorkOrderManager({
                 In Phiếu Ngay
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Popup Cảnh Báo Thiếu Hụt Tồn Kho & Lập Phiếu Yêu Cầu Vật Tư */}
+      {showInsufficientStockPopup && (
+        <div className="fixed inset-0 z-50 bg-black/65 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl border border-gray-200 max-w-lg w-full overflow-hidden">
+            <div className="bg-amber-500 p-4 text-white flex justify-between items-center">
+              <h3 className="font-bold text-sm flex items-center gap-1.5">
+                <AlertTriangle className="w-5 h-5 text-white" />
+                Cảnh báo: Không đủ hàng tồn kho sửa chữa!
+              </h3>
+              <button onClick={() => setShowInsufficientStockPopup(false)} className="text-white/80 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4 text-xs">
+              <p className="text-slate-600 leading-relaxed font-vietnamese">
+                Các linh kiện sau đây có số lượng tồn kho thực tế ít hơn nhu cầu sửa chữa của thiết bị. Hệ thống đề xuất tạo phiếu yêu cầu mua vật tư gửi Trưởng ca duyệt ngay:
+              </p>
+
+              <div className="border border-amber-200 rounded-lg overflow-hidden">
+                <table className="w-full text-left text-xs bg-amber-50/20">
+                  <thead>
+                    <tr className="border-b border-amber-200 bg-amber-100/50 font-semibold text-slate-700 text-[10px] uppercase">
+                      <th className="py-2 px-3">Linh kiện</th>
+                      <th className="py-2 px-3 text-center">Nhu cầu</th>
+                      <th className="py-2 px-3 text-center">Tồn kho</th>
+                      <th className="py-2 px-3 text-center">Thiếu hụt</th>
+                      <th className="py-2 px-3 text-right">Đề xuất mua</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-amber-100 text-slate-800">
+                    {insufficientItemsList.map((item, idx) => (
+                      <tr key={idx}>
+                        <td className="py-2 px-3">
+                          <span className="font-semibold block">{item.partName}</span>
+                          <span className="text-[9px] font-mono text-gray-500">Mã: {item.partCode}</span>
+                        </td>
+                        <td className="py-2 px-3 text-center font-bold">{item.required}</td>
+                        <td className="py-2 px-3 text-center font-bold text-slate-400">{item.stock}</td>
+                        <td className="py-2 px-3 text-center font-bold text-rose-600">-{item.deficit}</td>
+                        <td className="py-2 px-3 text-right">
+                          <input
+                            type="number"
+                            min={item.deficit}
+                            className="w-16 border border-amber-300 rounded px-1.5 py-0.5 text-center font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs bg-white"
+                            value={procurementQtyMap[item.partCode] || item.deficit}
+                            onChange={(e) => {
+                              const val = Math.max(item.deficit, Number(e.target.value));
+                              setProcurementQtyMap({
+                                ...procurementQtyMap,
+                                [item.partCode]: val
+                              });
+                            }}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div>
+                <label className="block text-gray-600 font-bold mb-1">Lý do lập phiếu mua hàng khẩn cấp</label>
+                <textarea
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-slate-800"
+                  rows={2}
+                  value={procurementReason}
+                  onChange={(e) => setProcurementReason(e.target.value)}
+                />
+              </div>
+
+              <div className="flex flex-col sm:flex-row justify-end gap-2.5 pt-4 border-t border-gray-150">
+                <button
+                  type="button"
+                  onClick={() => handleConfirmProcurementAndSaveWO(false)}
+                  className="px-4 py-2 border border-slate-300 text-slate-700 font-bold rounded-lg hover:bg-slate-50 transition"
+                >
+                  Bỏ qua mua khẩn cấp
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleConfirmProcurementAndSaveWO(true)}
+                  className="px-4 py-2 bg-amber-600 text-white font-bold rounded-lg hover:bg-amber-700 transition"
+                >
+                  Đồng ý Tạo yêu cầu mua & Phát hành phiếu
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Điều chuyển nhân sự approved by Trưởng Ca */}
+      {showReassignModal && (
+        <div className="fixed inset-0 z-50 bg-black/55 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl border border-gray-200 max-w-md w-full overflow-hidden">
+            <div className="bg-slate-900 p-4 text-white flex justify-between items-center">
+              <h3 className="font-bold text-sm">🔄 Trưởng ca duyệt điều chuyển nhân sự sửa chữa</h3>
+              <button onClick={() => setShowReassignModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleReassignTechnicians} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="block text-gray-600 font-bold mb-1.5">
+                  Chọn nhân sự kỹ thuật thay thế (Được phép chọn nhiều người)
+                </label>
+                <div className="border border-gray-300 rounded-lg p-3 bg-slate-50 max-h-36 overflow-y-auto space-y-1.5">
+                  {usersList.map((user) => {
+                    const isChecked = reassignTechs.includes(user.id);
+                    return (
+                      <label key={user.id} className="flex items-center gap-2 cursor-pointer p-1 hover:bg-slate-100 rounded">
+                        <input
+                          type="checkbox"
+                          className="rounded border-gray-300 text-indigo-600"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setReassignTechs([...reassignTechs, user.id]);
+                            } else {
+                              setReassignTechs(reassignTechs.filter(id => id !== user.id));
+                            }
+                          }}
+                        />
+                        <div>
+                          <span className="font-bold text-slate-800">{user.name}</span>
+                          <span className="text-[10px] text-indigo-600 ml-2 uppercase font-semibold bg-indigo-50 px-1 py-0.5 rounded border border-indigo-100">
+                            {user.role}
+                          </span>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-gray-600 font-bold mb-1">
+                  Lý do điều chuyển nhân sự (Lưu trữ và truy cứu tiến trình)
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ví dụ: Kỹ thuật viên A bận ca trực máy đùn số 2; Cần bổ sung kỹ thuật điện..."
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-slate-800"
+                  value={reassignReason}
+                  onChange={(e) => setReassignReason(e.target.value)}
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-150">
+                <button
+                  type="button"
+                  onClick={() => setShowReassignModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg font-bold text-slate-600 hover:bg-slate-50"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700"
+                >
+                  Duyệt điều chuyển nhân sự
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

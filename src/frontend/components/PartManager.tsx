@@ -44,6 +44,7 @@ export default function PartManager({
   const [formOrigin, setFormOrigin] = useState("");
   const [formColor, setFormColor] = useState("");
   const [formDeviceId, setFormDeviceId] = useState("");
+  const [formDeviceIds, setFormDeviceIds] = useState<string[]>([]);
 
   // Excel importer simulator states
   const [csvText, setCsvText] = useState("");
@@ -55,7 +56,7 @@ export default function PartManager({
                           p.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           p.serial.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = categoryFilter === "All" || p.category === categoryFilter;
-    const matchesDevice = deviceFilter === "All" || p.deviceId === deviceFilter;
+    const matchesDevice = deviceFilter === "All" || p.deviceId === deviceFilter || p.deviceIds?.includes(deviceFilter);
     return matchesSearch && matchesCategory && matchesDevice;
   });
 
@@ -71,7 +72,8 @@ export default function PartManager({
     setFormPrice(1000000);
     setFormOrigin("");
     setFormColor("");
-    setFormDeviceId(devices[0]?.id || "");
+    setFormDeviceId("");
+    setFormDeviceIds([]);
     setShowAddModal(true);
   };
 
@@ -89,6 +91,7 @@ export default function PartManager({
     setFormOrigin(p.origin || "");
     setFormColor(p.color || "");
     setFormDeviceId(p.deviceId || "");
+    setFormDeviceIds(p.deviceIds || (p.deviceId ? [p.deviceId] : []));
     setShowEditModal(true);
   };
 
@@ -106,7 +109,8 @@ export default function PartManager({
       price: Number(formPrice),
       origin: formOrigin,
       color: formColor,
-      deviceId: formDeviceId || undefined
+      deviceId: formDeviceIds[0] || undefined,
+      deviceIds: formDeviceIds
     });
     setShowAddModal(false);
   };
@@ -125,7 +129,8 @@ export default function PartManager({
       price: Number(formPrice),
       origin: formOrigin,
       color: formColor,
-      deviceId: formDeviceId || undefined
+      deviceId: formDeviceIds[0] || undefined,
+      deviceIds: formDeviceIds
     });
     setShowEditModal(false);
   };
@@ -403,7 +408,7 @@ PART-O12,Dầu mỡ bôi trơn bánh răng Kluber,KLUB-GRA-50,Vật tư Trung t�
                     type="text"
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-slate-800 font-mono"
                     placeholder="Ví dụ: SKF-22212"
-                    value={formName}
+                    value={formSerial}
                     onChange={(e) => setFormSerial(e.target.value)}
                   />
                 </div>
@@ -489,18 +494,46 @@ PART-O12,Dầu mỡ bôi trơn bánh răng Kluber,KLUB-GRA-50,Vật tư Trung t�
                     onChange={(e) => setFormColor(e.target.value)}
                   />
                 </div>
-                <div>
-                  <label className="block text-gray-600 font-bold mb-1">Thiết bị lắp đặt mặc định</label>
-                  <select
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-slate-800 bg-white"
-                    value={formDeviceId}
-                    onChange={(e) => setFormDeviceId(e.target.value)}
-                  >
-                    <option value="">-- Dùng chung toàn hệ thống --</option>
+                <div className="col-span-2">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="block text-gray-600 font-bold">Thiết bị lắp đặt mặc định (Chọn một hoặc nhiều)</label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setFormDeviceIds(devices.map(d => d.id))}
+                        className="text-indigo-600 hover:text-indigo-800 font-bold text-[10px] uppercase tracking-wider"
+                      >
+                        Chọn tất cả
+                      </button>
+                      <span className="text-gray-300">|</span>
+                      <button
+                        type="button"
+                        onClick={() => setFormDeviceIds([])}
+                        className="text-rose-600 hover:text-rose-800 font-bold text-[10px] uppercase tracking-wider"
+                      >
+                        Xóa chọn
+                      </button>
+                    </div>
+                  </div>
+                  <div className="border border-gray-300 rounded-lg p-2.5 bg-slate-50 max-h-32 overflow-y-auto grid grid-cols-2 gap-1.5">
                     {devices.map((d) => (
-                      <option key={d.id} value={d.id}>[{d.code}] {d.name}</option>
+                      <label key={d.id} className="flex items-center gap-2 cursor-pointer select-none hover:bg-slate-200/50 p-1 rounded">
+                        <input
+                          type="checkbox"
+                          className="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5"
+                          checked={formDeviceIds.includes(d.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFormDeviceIds([...formDeviceIds, d.id]);
+                            } else {
+                              setFormDeviceIds(formDeviceIds.filter(id => id !== d.id));
+                            }
+                          }}
+                        />
+                        <span className="text-slate-700 truncate text-[11px] font-semibold">[{d.code}] {d.name}</span>
+                      </label>
                     ))}
-                  </select>
+                  </div>
                 </div>
               </div>
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-150">
@@ -642,18 +675,46 @@ PART-O12,Dầu mỡ bôi trơn bánh răng Kluber,KLUB-GRA-50,Vật tư Trung t�
                     onChange={(e) => setFormColor(e.target.value)}
                   />
                 </div>
-                <div>
-                  <label className="block text-gray-600 font-bold mb-1">Thiết bị lắp đặt mặc định</label>
-                  <select
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-slate-800 bg-white"
-                    value={formDeviceId}
-                    onChange={(e) => setFormDeviceId(e.target.value)}
-                  >
-                    <option value="">-- Dùng chung toàn hệ thống --</option>
+                <div className="col-span-2">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="block text-gray-600 font-bold">Thiết bị lắp đặt mặc định (Chọn một hoặc nhiều)</label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setFormDeviceIds(devices.map(d => d.id))}
+                        className="text-indigo-600 hover:text-indigo-800 font-bold text-[10px] uppercase tracking-wider"
+                      >
+                        Chọn tất cả
+                      </button>
+                      <span className="text-gray-300">|</span>
+                      <button
+                        type="button"
+                        onClick={() => setFormDeviceIds([])}
+                        className="text-rose-600 hover:text-rose-800 font-bold text-[10px] uppercase tracking-wider"
+                      >
+                        Xóa chọn
+                      </button>
+                    </div>
+                  </div>
+                  <div className="border border-gray-300 rounded-lg p-2.5 bg-slate-50 max-h-32 overflow-y-auto grid grid-cols-2 gap-1.5">
                     {devices.map((d) => (
-                      <option key={d.id} value={d.id}>[{d.code}] {d.name}</option>
+                      <label key={d.id} className="flex items-center gap-2 cursor-pointer select-none hover:bg-slate-200/50 p-1 rounded">
+                        <input
+                          type="checkbox"
+                          className="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5"
+                          checked={formDeviceIds.includes(d.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFormDeviceIds([...formDeviceIds, d.id]);
+                            } else {
+                              setFormDeviceIds(formDeviceIds.filter(id => id !== d.id));
+                            }
+                          }}
+                        />
+                        <span className="text-slate-700 truncate text-[11px] font-semibold">[{d.code}] {d.name}</span>
+                      </label>
                     ))}
-                  </select>
+                  </div>
                 </div>
               </div>
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-150">

@@ -1,6 +1,6 @@
 import path from "path";
 import fs from "fs";
-import { User, Device, Part, WorkOrder, MaterialRequest, AuditLog } from "../frontend/types";
+import { User, Device, Part, WorkOrder, MaterialRequest, AuditLog, RoleDetails, PreventiveMaintenancePlan } from "../frontend/types";
 
 // Data Directory Configuration (points to root 'data' folder)
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -34,11 +34,70 @@ export function writeData<T>(filename: string, data: T): void {
 }
 
 // --- Seed Data Definitions ---
+export const INITIAL_ROLES: RoleDetails[] = [
+  {
+    id: "codien",
+    name: "Kỹ thuật bảo trì (Cơ điện)",
+    description: "Nhân viên kỹ thuật thực hiện chẩn đoán lỗi, bảo trì thiết bị và ghi nhận sửa chữa thực tế.",
+    canManageDevices: true,
+    canManageWorkOrders: true,
+    canManageParts: false,
+    canManageMaterials: false,
+    canManageUsers: false,
+    canViewAuditLogs: true
+  },
+  {
+    id: "vattu",
+    name: "Bộ phận Vật tư",
+    description: "Thủ kho kiêm thu mua. Quản lý danh mục vật tư, số lượng tồn kho và mua sắm linh kiện thay thế.",
+    canManageDevices: false,
+    canManageWorkOrders: false,
+    canManageParts: true,
+    canManageMaterials: true,
+    canManageUsers: false,
+    canViewAuditLogs: true
+  },
+  {
+    id: "truongca",
+    name: "Trưởng ca",
+    description: "Quản lý sản xuất, giám sát và duyệt các phiếu sửa chữa khẩn cấp, các yêu cầu vật tư hỗ trợ.",
+    canManageDevices: true,
+    canManageWorkOrders: true,
+    canManageParts: true,
+    canManageMaterials: true,
+    canManageUsers: false,
+    canViewAuditLogs: true
+  },
+  {
+    id: "lanhdao",
+    name: "Ban lãnh đạo",
+    description: "Ban Giám đốc. Toàn quyền giám sát hệ thống, phê duyệt ngân sách và phân quyền bảo mật.",
+    canManageDevices: true,
+    canManageWorkOrders: true,
+    canManageParts: true,
+    canManageMaterials: true,
+    canManageUsers: true,
+    canViewAuditLogs: true
+  },
+  {
+    id: "operator",
+    name: "Người vận hành",
+    description: "Nhân viên trực tiếp vận hành thiết bị tại nhà máy. Khai báo sự cố phát sinh khẩn cấp.",
+    canManageDevices: false,
+    canManageWorkOrders: true,
+    canManageParts: false,
+    canManageMaterials: false,
+    canManageUsers: false,
+    canViewAuditLogs: false
+  }
+];
+
 export const INITIAL_USERS: User[] = [
-  { id: "u1", username: "codien1", name: "Nguyễn Văn Hùng", role: "Kỹ thuật bảo trì (Cơ điện)", dept: "Tổ Cơ điện" },
-  { id: "u2", username: "vattu1", name: "Lê Thị Lan", role: "Bộ phận Vật tư", dept: "Phòng Vật tư" },
-  { id: "u3", username: "truongca1", name: "Trần Minh Đức", role: "Trưởng ca", dept: "Ban Quản lý Sản xuất" },
-  { id: "u4", username: "lanhdao1", name: "Phạm Việt Hoàng", role: "Ban lãnh đạo", dept: "Ban Giám đốc" }
+  { id: "u1", username: "codien1", password: "123456", name: "Nguyễn Văn Hùng", roleId: "codien", role: "Kỹ thuật bảo trì (Cơ điện)", dept: "Tổ Cơ điện", roleDetails: INITIAL_ROLES[0] },
+  { id: "u2", username: "vattu1", password: "123456", name: "Lê Thị Lan", roleId: "vattu", role: "Bộ phận Vật tư", dept: "Phòng Vật tư", roleDetails: INITIAL_ROLES[1] },
+  { id: "u3", username: "truongca1", password: "123456", name: "Trần Minh Đức", roleId: "truongca", role: "Trưởng ca", dept: "Ban Quản lý Sản xuất", roleDetails: INITIAL_ROLES[2] },
+  { id: "u4", username: "lanhdao1", password: "123456", name: "Phạm Việt Hoàng", roleId: "lanhdao", role: "Ban lãnh đạo", dept: "Ban Giám đốc", roleDetails: INITIAL_ROLES[3] },
+  { id: "u5", username: "operator1", password: "123456", name: "Nguyễn Văn Máy", roleId: "operator", role: "Người vận hành", dept: "Tổ Vận hành lò nung", roleDetails: INITIAL_ROLES[4] }
 ];
 
 export const INITIAL_DEVICES: Device[] = [
@@ -308,6 +367,48 @@ export const INITIAL_AUDIT_LOGS: AuditLog[] = [
   { id: "log-2", time: "2026-06-29T11:15:00", user: "Trần Minh Đức", action: "Duyệt phiếu sửa chữa", details: "Duyệt phiếu sửa chữa WO-260602 cho thiết bị DEV-001" },
   { id: "log-3", time: "2026-06-29T14:30:00", user: "Lê Thị Lan", action: "Cập nhật đơn đặt hàng", details: "Cập nhật trạng thái phiếu mua vật tư MR-260601 sang 'Đang mua hàng'" },
   { id: "log-4", time: "2026-06-29T16:00:00", user: "Phạm Việt Hoàng", action: "Xem báo cáo", details: "Xem báo cáo KPI và chi phí bảo trì quý 2" }
+];
+
+export const INITIAL_PM_PLANS: PreventiveMaintenancePlan[] = [
+  {
+    id: "PM-001",
+    code: "PM-001",
+    name: "Bảo trì định kỳ máy nén khí",
+    deviceId: "DEV-003",
+    deviceName: "Máy nén khí trục vít Atlas Copco GA75",
+    intervalDays: 90,
+    lastDoneDate: "2026-04-20",
+    nextDueDate: "2026-07-19",
+    description: "Thay dầu máy nén, kiểm tra khớp nối và bộ lọc tách dầu trục vít.",
+    assignedTo: "Nguyễn Văn Hùng",
+    status: "Đúng hạn"
+  },
+  {
+    id: "PM-002",
+    code: "PM-002",
+    name: "Bảo trì định kỳ hệ thống quạt hút bụi lò",
+    deviceId: "DEV-005",
+    deviceName: "Hệ thống quạt hút lọc bụi lò quay số 1",
+    intervalDays: 60,
+    lastDoneDate: "2026-05-01",
+    nextDueDate: "2026-06-30",
+    description: "Kiểm tra độ rung động động cơ quạt hút, bôi trơn ổ đỡ trục quạt.",
+    assignedTo: "Nguyễn Văn Hùng",
+    status: "Sắp đến hạn"
+  },
+  {
+    id: "PM-003",
+    code: "PM-003",
+    name: "Kiểm định định kỳ Gầu tải liệu đá vôi",
+    deviceId: "DEV-004",
+    deviceName: "Gầu tải liệu đá vôi nâng đứng",
+    intervalDays: 45,
+    lastDoneDate: "2026-03-05",
+    nextDueDate: "2026-04-19",
+    description: "Cân chỉnh độ căng của xích gầu, kiểm tra bề mặt máng trượt và gầu múc.",
+    assignedTo: "Nguyễn Văn Hùng",
+    status: "Quá hạn"
+  }
 ];
 
 export function logAction(user: string, action: string, details: string): void {

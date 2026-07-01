@@ -26,12 +26,28 @@ GO
 -- SECTION 1: CREATE TABLES
 -- ====================================================================================
 
+-- A0. Roles Table (Bảng Vai trò / Phân quyền nâng cao)
+CREATE TABLE [dbo].[Roles] (
+    [Id] NVARCHAR(50) NOT NULL PRIMARY KEY,
+    [Name] NVARCHAR(100) NOT NULL UNIQUE,
+    [Description] NVARCHAR(250) NULL,
+    [CanManageDevices] BIT NOT NULL DEFAULT 0,
+    [CanManageWorkOrders] BIT NOT NULL DEFAULT 0,
+    [CanManageParts] BIT NOT NULL DEFAULT 0,
+    [CanManageMaterials] BIT NOT NULL DEFAULT 0,
+    [CanManageUsers] BIT NOT NULL DEFAULT 0,
+    [CanViewAuditLogs] BIT NOT NULL DEFAULT 1
+);
+GO
+
 -- A. Users Table (Bảng Người dùng / Phân quyền)
 CREATE TABLE [dbo].[Users] (
     [Id] NVARCHAR(50) NOT NULL PRIMARY KEY,
     [Username] NVARCHAR(50) NOT NULL UNIQUE,
+    [Password] NVARCHAR(100) NOT NULL DEFAULT '123456',
     [Name] NVARCHAR(150) NOT NULL,
-    [Role] NVARCHAR(100) NOT NULL, -- 'Kỹ thuật bảo trì (Cơ điện)', 'Bộ phận Vật tư', 'Trưởng ca', 'Ban lãnh đạo'
+    [RoleId] NVARCHAR(50) NOT NULL FOREIGN KEY REFERENCES [dbo].[Roles]([Id]),
+    [Role] NVARCHAR(100) NOT NULL, -- Hỗ trợ tương thích ngược
     [Dept] NVARCHAR(100) NOT NULL
 );
 GO
@@ -157,13 +173,22 @@ GO
 -- SECTION 2: SEED INITIAL DATA (Dữ liệu mẫu chuẩn SADICO)
 -- ====================================================================================
 
+-- 0. Seed Roles
+INSERT INTO [dbo].[Roles] ([Id], [Name], [Description], [CanManageDevices], [CanManageWorkOrders], [CanManageParts], [CanManageMaterials], [CanManageUsers], [CanViewAuditLogs])
+VALUES
+('codien', N'Kỹ thuật bảo trì (Cơ điện)', N'Kỹ thuật viên thực tế', 1, 1, 0, 0, 0, 1),
+('vattu', N'Bộ phận Vật tư', N'Quản lý tồn kho & mua sắm', 0, 0, 1, 1, 0, 1),
+('truongca', N'Trưởng ca', N'Giám sát & Phê duyệt sửa chữa/vật tư', 1, 1, 1, 1, 0, 1),
+('lanhdao', N'Ban lãnh đạo', N'Toàn quyền hệ thống & Phân quyền', 1, 1, 1, 1, 1, 1);
+GO
+
 -- 1. Seed Users
-INSERT INTO [dbo].[Users] ([Id], [Username], [Name], [Role], [Dept])
+INSERT INTO [dbo].[Users] ([Id], [Username], [Password], [Name], [RoleId], [Role], [Dept])
 VALUES 
-('u1', 'codien1', N'Nguyễn Văn Hùng', N'Kỹ thuật bảo trì (Cơ điện)', N'Tổ Cơ điện'),
-('u2', 'vattu1', N'Lê Thị Lan', N'Bộ phận Vật tư', N'Phòng Vật tư'),
-('u3', 'truongca1', N'Trần Minh Đức', N'Trưởng ca', N'Ban Quản lý Sản xuất'),
-('u4', 'lanhdao1', N'Phạm Việt Hoàng', N'Ban lãnh đạo', N'Ban Giám đốc');
+('u1', 'codien1', '123456', N'Nguyễn Văn Hùng', 'codien', N'Kỹ thuật bảo trì (Cơ điện)', N'Tổ Cơ điện'),
+('u2', 'vattu1', '123456', N'Lê Thị Lan', 'vattu', N'Bộ phận Vật tư', N'Phòng Vật tư'),
+('u3', 'truongca1', '123456', N'Trần Minh Đức', 'truongca', N'Trưởng ca', N'Ban Quản lý Sản xuất'),
+('u4', 'lanhdao1', '123456', N'Phạm Việt Hoàng', 'lanhdao', N'Ban lãnh đạo', N'Ban Giám đốc');
 GO
 
 -- 2. Seed Devices

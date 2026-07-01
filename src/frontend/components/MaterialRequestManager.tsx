@@ -27,6 +27,14 @@ export default function MaterialRequestManager({
   const [poNotes, setPoNotes] = useState("");
   const [poDeliveryDate, setPoDeliveryDate] = useState("");
 
+  // Warehousing state
+  const [showReceiveModal, setShowReceiveModal] = useState(false);
+  const [receiveInvoiceNo, setReceiveInvoiceNo] = useState("");
+  const [receiveSupplierName, setReceiveSupplierName] = useState("");
+  const [receiveWarehouseName, setReceiveWarehouseName] = useState("Kho Vật Tư Trung Tâm");
+  const [receiveNotes, setReceiveNotes] = useState("");
+  const [receiveItems, setReceiveItems] = useState<{ partCode: string; partName: string; quantity: number; unit: string; notes?: string }[]>([]);
+
   const getStatusBadgeClass = (status: MaterialRequest["status"]) => {
     return {
       "Chờ duyệt": "bg-amber-100 text-amber-800 border-amber-200",
@@ -68,11 +76,38 @@ export default function MaterialRequestManager({
     setSelectedReq(null);
   };
 
-  const handleReceiveGoods = (req: MaterialRequest) => {
-    onUpdateMaterialRequest(req.id, {
+  const handleOpenReceiveModal = (req: MaterialRequest) => {
+    setSelectedReq(req);
+    setReceiveInvoiceNo(`GD-${Math.floor(100000 + Math.random() * 900000)}`);
+    setReceiveSupplierName("");
+    setReceiveWarehouseName("Kho Vật Tư Trung Tâm");
+    setReceiveNotes("Bàn giao linh kiện nhập kho đúng số lượng và chủng loại.");
+    setReceiveItems(req.items.map(item => ({
+      partCode: item.partCode,
+      partName: item.partName,
+      quantity: item.quantity,
+      unit: item.unit,
+      notes: "Hàng mới nguyên seal"
+    })));
+    setShowReceiveModal(true);
+  };
+
+  const handleSaveReceive = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedReq) return;
+
+    onUpdateMaterialRequest(selectedReq.id, {
       status: "Đã giao hàng/Nhập kho",
-      receptionDate: new Date().toISOString().split("T")[0]
+      receptionDate: new Date().toISOString().split("T")[0],
+      receptionist: userName,
+      invoiceNo: receiveInvoiceNo,
+      supplierName: receiveSupplierName,
+      warehouseName: receiveWarehouseName,
+      receptionNotes: receiveNotes,
+      actualItems: receiveItems
     });
+
+    setShowReceiveModal(false);
     setSelectedReq(null);
   };
 
@@ -256,11 +291,7 @@ export default function MaterialRequestManager({
                   {/* Reception confirmation trigger for Procurement */}
                   {selectedReq.status === "Đang mua hàng" && userRole === "Bộ phận Vật tư" && (
                     <button
-                      onClick={() => {
-                        if (confirm("Bạn có chắc chắn đã nhận đủ hàng và đồng ý tự động nhập kho vật tư, cộng dồn tồn kho không?")) {
-                          handleReceiveGoods(selectedReq);
-                        }
-                      }}
+                      onClick={() => handleOpenReceiveModal(selectedReq)}
                       className="w-full py-2 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 transition text-center"
                       id="btn-receive-goods-purchase"
                     >
@@ -338,6 +369,161 @@ export default function MaterialRequestManager({
                   className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700"
                 >
                   Xác nhận đặt mua
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Professional Warehousing Confirmation */}
+      {showReceiveModal && selectedReq && (
+        <div className="fixed inset-0 z-50 bg-black/55 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl border border-gray-200 max-w-2xl w-full overflow-hidden">
+            <div className="bg-emerald-600 p-4 text-white flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <Box className="w-5 h-5" />
+                <h3 className="font-bold text-sm">📥 Xác nhận nhập kho vật tư thực tế [Phiếu: {selectedReq.code}]</h3>
+              </div>
+              <button onClick={() => setShowReceiveModal(false)} className="text-white/80 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveReceive} className="p-6 space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-gray-600 font-bold mb-1">Người tiếp nhận nhập kho</label>
+                  <input
+                    type="text"
+                    disabled
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-slate-500 bg-slate-50 font-semibold"
+                    value={userName}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-gray-600 font-bold mb-1">Nhà cung cấp / Đối tác giao hàng</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ví dụ: Công ty Thiết bị Công nghiệp ABC"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-slate-800 font-medium"
+                    value={receiveSupplierName}
+                    onChange={(e) => setReceiveSupplierName(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-gray-600 font-bold mb-1">Số chứng từ giao hàng / Hóa đơn thực tế</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ví dụ: GD-102934"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-slate-800 font-bold"
+                    value={receiveInvoiceNo}
+                    onChange={(e) => setReceiveInvoiceNo(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-gray-600 font-bold mb-1">Kho lưu trữ tiếp nhận chính</label>
+                  <select
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-slate-800 font-bold bg-white"
+                    value={receiveWarehouseName}
+                    onChange={(e) => setReceiveWarehouseName(e.target.value)}
+                  >
+                    <option value="Kho Vật Tư Trung Tâm">Vật tư sửa chữa (Kho TT)</option>
+                    <option value="Kho Vật Tư Dự Phòng Xưởng">Vật tư Trung tâm sản xuất</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Adjust items */}
+              <div>
+                <span className="block text-slate-700 font-bold mb-2">📋 Kiểm kê số lượng bàn giao thực tế:</span>
+                <div className="border border-gray-200 rounded-lg overflow-hidden bg-slate-50/50">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-gray-200 bg-slate-100 font-semibold text-slate-700 uppercase text-[10px]">
+                        <th className="py-2 px-3">Mã vật tư</th>
+                        <th className="py-2 px-3">Tên vật tư</th>
+                        <th className="py-2 px-3 text-center">Đề xuất</th>
+                        <th className="py-2 px-3 text-center w-28">Thực nhận</th>
+                        <th className="py-2 px-3">Ghi chú hiện trạng</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 text-slate-800">
+                      {receiveItems.map((item, idx) => {
+                        const originalItem = selectedReq.items.find(i => i.partCode === item.partCode);
+                        const suggestedQty = originalItem ? originalItem.quantity : item.quantity;
+                        return (
+                          <tr key={idx} className="hover:bg-slate-50 bg-white">
+                            <td className="py-2 px-3 font-mono font-bold text-indigo-700">{item.partCode}</td>
+                            <td className="py-2 px-3 font-medium">{item.partName}</td>
+                            <td className="py-2 px-3 text-center font-semibold text-slate-400">{suggestedQty} {item.unit}</td>
+                            <td className="py-2 px-3 text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  className="w-16 border border-gray-300 rounded px-1.5 py-0.5 text-center font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white text-xs"
+                                  value={item.quantity}
+                                  onChange={(e) => {
+                                    const val = Math.max(0, Number(e.target.value));
+                                    const updated = [...receiveItems];
+                                    updated[idx].quantity = val;
+                                    setReceiveItems(updated);
+                                  }}
+                                />
+                                <span className="text-[10px] text-gray-500">{item.unit}</span>
+                              </div>
+                            </td>
+                            <td className="py-2 px-3">
+                              <input
+                                type="text"
+                                placeholder="Hàng mới, nguyên vẹn..."
+                                className="w-full border border-gray-200 rounded px-1.5 py-0.5 bg-slate-50 text-slate-700 text-[11px] focus:bg-white"
+                                value={item.notes || ""}
+                                onChange={(e) => {
+                                  const updated = [...receiveItems];
+                                  updated[idx].notes = e.target.value;
+                                  setReceiveItems(updated);
+                                }}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-gray-600 font-bold mb-1">Ghi chú tổng quan khi nhập kho</label>
+                <textarea
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-slate-800"
+                  rows={2}
+                  placeholder="Ví dụ: Đã đối chiếu số seri trùng khớp; Mọi vật tư đều đạt kiểm nghiệm chất lượng sản xuất..."
+                  value={receiveNotes}
+                  onChange={(e) => setReceiveNotes(e.target.value)}
+                />
+              </div>
+
+              <div className="flex flex-col sm:flex-row justify-end gap-2.5 pt-4 border-t border-gray-150">
+                <button
+                  type="button"
+                  onClick={() => setShowReceiveModal(false)}
+                  className="px-4 py-2 border border-slate-300 text-slate-700 font-bold rounded-lg hover:bg-slate-50 transition"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 transition"
+                >
+                  Đồng ý Nhập kho & Cộng tồn kho
                 </button>
               </div>
             </form>

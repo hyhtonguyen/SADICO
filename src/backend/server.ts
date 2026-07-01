@@ -5,12 +5,14 @@ import {
   readData,
   writeData,
   logAction,
+  INITIAL_ROLES,
   INITIAL_USERS,
   INITIAL_DEVICES,
   INITIAL_PARTS,
   INITIAL_WORK_ORDERS,
   INITIAL_MATERIAL_REQUESTS,
   INITIAL_AUDIT_LOGS,
+  INITIAL_PM_PLANS,
 } from "../database/dataStore";
 
 const app = express();
@@ -21,30 +23,198 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // --- API Endpoints ---
 
+// 0. Roles Endpoints
+app.get("/api/roles", (req, res) => {
+  const currentRoles = readData("roles.json", INITIAL_ROLES);
+  res.json(currentRoles);
+});
+
+app.post("/api/roles", (req, res) => {
+  const currentRoles = readData("roles.json", INITIAL_ROLES);
+  const newRole = { ...req.body };
+  if (!newRole.id) {
+    newRole.id = `role-${Date.now().toString().slice(-4)}`;
+  }
+  currentRoles.push(newRole);
+  writeData("roles.json", currentRoles);
+  logAction(
+    (req.query.user as string) || "Hệ thống",
+    "Thêm vai trò",
+    `Thêm mới vai trò ${newRole.name} (${newRole.id})`
+  );
+  res.json({ success: true, role: newRole });
+});
+
+app.put("/api/roles/:id", (req, res) => {
+  const { id } = req.params;
+  const currentRoles = readData("roles.json", INITIAL_ROLES);
+  const idx = currentRoles.findIndex(r => r.id === id);
+  if (idx !== -1) {
+    currentRoles[idx] = { ...currentRoles[idx], ...req.body };
+    writeData("roles.json", currentRoles);
+    
+    // Đồng bộ lại role hiển thị cho các user thuộc vai trò này
+    const currentUsers = readData("users.json", INITIAL_USERS);
+    let updatedUsersCount = 0;
+    currentUsers.forEach(u => {
+      if (u.roleId === id) {
+        u.role = currentRoles[idx].name;
+        u.roleDetails = currentRoles[idx];
+        updatedUsersCount++;
+      }
+    });
+    if (updatedUsersCount > 0) {
+      writeData("users.json", currentUsers);
+    }
+
+    logAction(
+      (req.query.user as string) || "Hệ thống",
+      "Cập nhật vai trò",
+      `Cập nhật quyền hạn vai trò ${currentRoles[idx].name} (${id})`
+    );
+    res.json({ success: true, role: currentRoles[idx] });
+  } else {
+    res.status(404).json({ success: false, message: "Không tìm thấy vai trò!" });
+  }
+});
+
+app.delete("/api/roles/:id", (req, res) => {
+  const { id } = req.params;
+  let currentRoles = readData("roles.json", INITIAL_ROLES);
+  const roleToDelete = currentRoles.find(r => r.id === id);
+  if (roleToDelete) {
+    currentRoles = currentRoles.filter(r => r.id !== id);
+    writeData("roles.json", currentRoles);
+    logAction(
+      (req.query.user as string) || "Hệ thống",
+      "Xóa vai trò",
+      `Xóa vai trò ${roleToDelete.name} (${id})`
+    );
+    res.json({ success: true });
+  } else {
+    res.status(404).json({ success: false, message: "Không tìm thấy vai trò!" });
+  }
+});
+
 // Authentication / User endpoints
 app.get("/api/users", (req, res) => {
-  res.json(INITIAL_USERS);
+  const currentUsers = readData("users.json", INITIAL_USERS);
+  const currentRoles = readData("roles.json", INITIAL_ROLES);
+  
+  // Ánh xạ động thông tin vai trò mới nhất
+  const mappedUsers = currentUsers.map(u => {
+    const roleDetails = currentRoles.find(r => r.id === u.roleId) || INITIAL_ROLES.find(r => r.id === u.roleId);
+    return {
+      ...u,
+      role: roleDetails ? roleDetails.name : u.role,
+      roleDetails: roleDetails || u.roleDetails
+    };
+  });
+  res.json(mappedUsers);
+});
+
+app.post("/api/users", (req, res) => {
+  const currentUsers = readData("users.json", INITIAL_USERS);
+  const currentRoles = readData("roles.json", INITIAL_ROLES);
+  const newUser = { ...req.body };
+  if (!newUser.id) {
+    newUser.id = `u-${Date.now().toString().slice(-4)}`;
+  }
+  if (!newUser.password) {
+    newUser.password = "123456";
+  }
+  
+  const roleDetails = currentRoles.find(r => r.id === newUser.roleId) || INITIAL_ROLES.find(r => r.id === newUser.roleId);
+  newUser.role = roleDetails ? roleDetails.name : (newUser.role || "Kỹ thuật bảo trì (Cơ điện)");
+  newUser.roleDetails = roleDetails;
+
+  currentUsers.push(newUser);
+  writeData("users.json", currentUsers);
+  logAction(
+    (req.query.user as string) || "Hệ thống",
+    "Thêm người dùng",
+    `Thêm mới tài khoản ${newUser.name} (${newUser.username})`
+  );
+  res.json({ success: true, user: newUser });
+});
+
+app.put("/api/users/:id", (req, res) => {
+  const { id } = req.params;
+  const currentUsers = readData("users.json", INITIAL_USERS);
+  const currentRoles = readData("roles.json", INITIAL_ROLES);
+  const idx = currentUsers.findIndex(u => u.id === id);
+  if (idx !== -1) {
+    const roleDetails = currentRoles.find(r => r.id === req.body.roleId) || INITIAL_ROLES.find(r => r.id === req.body.roleId);
+    
+    // Nếu mật khẩu rỗng hoặc không đổi, giữ nguyên mật khẩu cũ
+    const updatedPassword = req.body.password || currentUsers[idx].password || "123456";
+    
+    currentUsers[idx] = { 
+      ...currentUsers[idx], 
+      ...req.body,
+      password: updatedPassword,
+      role: roleDetails ? roleDetails.name : (req.body.role || currentUsers[idx].role),
+      roleDetails: roleDetails || currentUsers[idx].roleDetails
+    };
+    writeData("users.json", currentUsers);
+    logAction(
+      (req.query.user as string) || "Hệ thống",
+      "Cập nhật tài khoản",
+      `Cập nhật thông tin tài khoản ${currentUsers[idx].name} (${id})`
+    );
+    res.json({ success: true, user: currentUsers[idx] });
+  } else {
+    res.status(404).json({ success: false, message: "Không tìm thấy người dùng!" });
+  }
+});
+
+app.delete("/api/users/:id", (req, res) => {
+  const { id } = req.params;
+  let currentUsers = readData("users.json", INITIAL_USERS);
+  const userToDelete = currentUsers.find(u => u.id === id);
+  if (userToDelete) {
+    currentUsers = currentUsers.filter(u => u.id !== id);
+    writeData("users.json", currentUsers);
+    logAction(
+      (req.query.user as string) || "Hệ thống",
+      "Xóa người dùng",
+      `Xóa tài khoản ${userToDelete.name} (${id})`
+    );
+    res.json({ success: true });
+  } else {
+    res.status(404).json({ success: false, message: "Không tìm thấy người dùng!" });
+  }
 });
 
 app.post("/api/auth/login", (req, res) => {
   const { username, password } = req.body;
-  const user = INITIAL_USERS.find((u) => u.username === username);
+  const currentUsers = readData("users.json", INITIAL_USERS);
+  const currentRoles = readData("roles.json", INITIAL_ROLES);
+  const user = currentUsers.find((u) => u.username === username);
 
   if (!user) {
     return res.status(401).json({ success: false, message: "Sai tên đăng nhập!" });
   }
 
-  // Validate password - all default users have password 'sadico123'
-  if (password !== "sadico123") {
+  // Khớp với mật khẩu lưu trong DB, hoặc các mật khẩu mặc định 'sadico123' / '123456'
+  const userPassword = user.password || "123456";
+  if (password !== userPassword && password !== "sadico123" && password !== "123456") {
     return res.status(401).json({ success: false, message: "Mật khẩu không chính xác!" });
   }
 
+  const roleDetails = currentRoles.find(r => r.id === user.roleId) || INITIAL_ROLES.find(r => r.id === user.roleId);
+  const enrichedUser = {
+    ...user,
+    role: roleDetails ? roleDetails.name : user.role,
+    roleDetails: roleDetails || user.roleDetails
+  };
+
   logAction(
-    user.name,
+    enrichedUser.name,
     "Đăng nhập",
-    `Người dùng ${user.name} đăng nhập thành công với vai trò ${user.role}`
+    `Người dùng ${enrichedUser.name} đăng nhập thành công với vai trò ${enrichedUser.role}`
   );
-  res.json({ success: true, user });
+  res.json({ success: true, user: enrichedUser });
 });
 
 // 1. Devices Endpoint
@@ -361,24 +531,38 @@ app.put("/api/material-requests/:id", (req, res) => {
     const wasAlreadyReceived = oldReq.status === "Đã giao hàng/Nhập kho";
 
     if (isNowReceived && !wasAlreadyReceived) {
-      updatedReq.items.forEach((item: any) => {
+      const targetItems = updatedReq.actualItems && updatedReq.actualItems.length > 0
+        ? updatedReq.actualItems
+        : updatedReq.items;
+
+      const userStr = (req.query.user as string) || "Bộ phận Vật tư";
+      const invoiceStr = updatedReq.invoiceNo ? ` (Số chứng từ: ${updatedReq.invoiceNo})` : "";
+      const supplierStr = updatedReq.supplierName ? ` từ nhà cung cấp ${updatedReq.supplierName}` : "";
+      const warehouseStr = updatedReq.warehouseName || "Kho Vật Tư Trung Tâm";
+
+      targetItems.forEach((item: any) => {
         const partIdx = currentParts.findIndex((p) => p.code === item.partCode);
+        const targetCategory = warehouseStr === "Kho Vật Tư Dự Phòng Xưởng"
+          ? "Vật tư Trung tâm sản xuất"
+          : "Vật tư sửa chữa";
+
         if (partIdx !== -1) {
           const originalStock = currentParts[partIdx].stock;
           const receivedQty = item.quantity;
           currentParts[partIdx].stock = originalStock + receivedQty;
+          currentParts[partIdx].category = targetCategory;
 
           logAction(
-            (req.query.user as string) || "Hệ thống",
+            userStr,
             "Nhập kho vật tư",
-            `Nhập kho thành công ${item.partName} (+${receivedQty} cái, Tồn kho mới: ${currentParts[partIdx].stock})`
+            `Nhập kho thành công ${item.partName} (+${receivedQty} ${item.unit || "cái"}${supplierStr}${invoiceStr} tại ${warehouseStr}. Tồn kho mới: ${currentParts[partIdx].stock})`
           );
         } else {
           currentParts.push({
             code: item.partCode,
             name: item.partName,
             serial: "",
-            category: "Vật tư sửa chữa",
+            category: targetCategory,
             stock: item.quantity,
             minStock: 10,
             lifecycleMonths: 12,
@@ -389,28 +573,53 @@ app.put("/api/material-requests/:id", (req, res) => {
             deviceId: updatedReq.deviceId || "",
           });
           logAction(
-            (req.query.user as string) || "Hệ thống",
+            userStr,
             "Tự động tạo & nhập kho",
-            `Thêm mới linh kiện chưa có trong hệ thống và nhập kho: ${item.partName} (+${item.quantity})`
+            `Thêm mới linh kiện chưa có trong hệ thống và nhập kho: ${item.partName} (+${item.quantity} ${item.unit || "cái"} tại ${warehouseStr})`
           );
         }
       });
       writeData("parts.json", currentParts);
       updatedReq.receptionDate = new Date().toISOString().split("T")[0];
 
-      if (updatedReq.workOrderId) {
-        const woIdx = currentWorkOrders.findIndex((w) => w.id === updatedReq.workOrderId);
-        if (woIdx !== -1) {
-          currentWorkOrders[woIdx].status = "Sẵn sàng thực hiện";
-          currentWorkOrders[woIdx].notes = `Vật tư từ phiếu ${updatedReq.code} đã nhập kho thành công. Sẵn sàng thực hiện sửa chữa thiết bị.`;
-          writeData("workOrders.json", currentWorkOrders);
-          logAction(
-            "Hệ thống",
-            "Cập nhật phiếu sửa chữa tự động",
-            `Cập nhật phiếu sửa chữa ${currentWorkOrders[woIdx].code} sang trạng thái "Sẵn sàng thực hiện" do vật tư đã về`
-          );
+      // Auto check and update ALL Work Orders that were "Chờ vật tư"
+      currentWorkOrders.forEach((wo: any) => {
+        if (wo.status === "Chờ vật tư") {
+          let allPartsAvailable = true;
+          const detailedStockChecks: string[] = [];
+
+          wo.partsUsed.forEach((pu: any) => {
+            const partObj = currentParts.find((p) => p.code === pu.partCode);
+            const currentStock = partObj ? partObj.stock : 0;
+            if (currentStock < pu.quantity) {
+              allPartsAvailable = false;
+            }
+            detailedStockChecks.push(`${pu.partName}: cần ${pu.quantity}, hiện có ${currentStock}`);
+          });
+
+          if (allPartsAvailable && wo.partsUsed.length > 0) {
+            wo.status = "Sẵn sàng thực hiện";
+            wo.notes = `Vật tư đã được bồi đắp đủ trong kho nhờ đợt nhập hàng từ đề xuất ${updatedReq.code}. Tự động chuyển trạng thái để Kỹ thuật tiến hành sửa chữa.`;
+            
+            if (!wo.history) {
+              wo.history = [];
+            }
+            wo.history.push({
+              time: new Date().toISOString(),
+              user: "Hệ thống Tự động",
+              action: "Tự động duyệt vật tư đủ",
+              details: `Kiểm tra thấy đủ vật tư trong kho. Chi tiết tồn kho: ${detailedStockChecks.join("; ")}`
+            });
+
+            logAction(
+              "Hệ thống",
+              "Cập nhật phiếu sửa chữa tự động",
+              `Cập nhật phiếu sửa chữa ${wo.code} sang trạng thái "Sẵn sàng thực hiện" do đủ vật tư`
+            );
+          }
         }
-      }
+      });
+      writeData("workOrders.json", currentWorkOrders);
     }
 
     currentRequests[index] = updatedReq;
@@ -425,6 +634,158 @@ app.put("/api/material-requests/:id", (req, res) => {
   } else {
     res.status(404).json({ success: false, message: "Không tìm thấy phiếu yêu cầu!" });
   }
+});
+
+// 4.5. Preventive Maintenance (PM) Plans Endpoints
+app.get("/api/pm-plans", (req, res) => {
+  const plans = readData("pmPlans.json", INITIAL_PM_PLANS);
+  // Cập nhật trạng thái dựa trên ngày hiện tại
+  const today = new Date();
+  const updatedPlans = plans.map(p => {
+    const dueDate = new Date(p.nextDueDate);
+    const diffTime = dueDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    let status = p.status;
+    if (diffDays < 0) {
+      status = "Quá hạn";
+    } else if (diffDays <= 7) {
+      status = "Sắp đến hạn";
+    } else {
+      status = "Đúng hạn";
+    }
+    return { ...p, status };
+  });
+  res.json(updatedPlans);
+});
+
+app.post("/api/pm-plans", (req, res) => {
+  const plans = readData("pmPlans.json", INITIAL_PM_PLANS);
+  const newPlan = { ...req.body };
+  if (!newPlan.id) {
+    newPlan.id = `PM-${Date.now().toString().slice(-4)}`;
+  }
+  if (!newPlan.code) {
+    newPlan.code = newPlan.id;
+  }
+  plans.push(newPlan);
+  writeData("pmPlans.json", plans);
+  
+  logAction(
+    (req.query.user as string) || "Hệ thống",
+    "Tạo kế hoạch bảo trì",
+    `Tạo kế hoạch bảo trì định kỳ ${newPlan.name} cho thiết bị ${newPlan.deviceName}`
+  );
+  res.json({ success: true, plan: newPlan });
+});
+
+app.put("/api/pm-plans/:id", (req, res) => {
+  const { id } = req.params;
+  const plans = readData("pmPlans.json", INITIAL_PM_PLANS);
+  const idx = plans.findIndex(p => p.id === id);
+  if (idx !== -1) {
+    plans[idx] = { ...plans[idx], ...req.body };
+    writeData("pmPlans.json", plans);
+    
+    logAction(
+      (req.query.user as string) || "Hệ thống",
+      "Cập nhật kế hoạch bảo trì",
+      `Cập nhật kế hoạch bảo trì định kỳ ${plans[idx].name}`
+    );
+    res.json({ success: true, plan: plans[idx] });
+  } else {
+    res.status(404).json({ success: false, message: "Không tìm thấy kế hoạch!" });
+  }
+});
+
+app.delete("/api/pm-plans/:id", (req, res) => {
+  const { id } = req.params;
+  let plans = readData("pmPlans.json", INITIAL_PM_PLANS);
+  const planToDelete = plans.find(p => p.id === id);
+  if (planToDelete) {
+    plans = plans.filter(p => p.id !== id);
+    writeData("pmPlans.json", plans);
+    logAction(
+      (req.query.user as string) || "Hệ thống",
+      "Xóa kế hoạch bảo trì",
+      `Xóa kế hoạch bảo trì định kỳ ${planToDelete.name}`
+    );
+    res.json({ success: true });
+  } else {
+    res.status(404).json({ success: false, message: "Không tìm thấy kế hoạch!" });
+  }
+});
+
+// Trực tiếp kích hoạt bảo trì từ kế hoạch PM
+app.post("/api/pm-plans/:id/trigger", (req, res) => {
+  const { id } = req.params;
+  const plans = readData("pmPlans.json", INITIAL_PM_PLANS);
+  const planIdx = plans.findIndex(p => p.id === id);
+  
+  if (planIdx === -1) {
+    return res.status(404).json({ success: false, message: "Không tìm thấy kế hoạch bảo trì!" });
+  }
+  
+  const plan = plans[planIdx];
+  const user = (req.query.user as string) || "Hệ thống";
+  
+  // 1. Tạo Work Order mới
+  const currentWorkOrders = readData("workOrders.json", INITIAL_WORK_ORDERS);
+  const woId = `WO-PM-${Date.now().toString().slice(-4)}`;
+  const woCode = woId;
+  const todayStr = new Date().toISOString().split("T")[0];
+  
+  const newWO: import("../frontend/types").WorkOrder = {
+    id: woId,
+    code: woCode,
+    date: todayStr,
+    creator: user,
+    department: "Tổ Cơ điện",
+    deviceId: plan.deviceId,
+    deviceName: plan.deviceName,
+    location: "Khu vực sản xuất",
+    faultTime: new Date().toISOString(),
+    faultFinder: "Kế hoạch bảo trì định kỳ",
+    symptom: `Bảo trì định kỳ: ${plan.name}`,
+    cause: "Thực hiện bảo trì dự phòng theo chu kỳ định sẵn.",
+    proposedSolution: plan.description,
+    targetCompletion: todayStr,
+    technician: plan.assignedTo || "Nguyễn Văn Hùng",
+    assignedTechnicians: plan.assignedTo ? [plan.assignedTo] : ["Nguyễn Văn Hùng"],
+    status: "Sẵn sàng thực hiện",
+    notes: `Được kích hoạt tự động từ kế hoạch bảo trì ${plan.code}. Chu kỳ ${plan.intervalDays} ngày.`,
+    partsUsed: [],
+    cost: 0,
+    history: [
+      {
+        time: new Date().toISOString(),
+        user: user,
+        action: "Kích hoạt bảo trì",
+        details: `Phiếu được sinh ra tự động từ Kế hoạch bảo trì định kỳ ${plan.code}.`
+      }
+    ]
+  };
+  
+  currentWorkOrders.unshift(newWO);
+  writeData("workOrders.json", currentWorkOrders);
+  
+  // 2. Cập nhật Kế hoạch PM (lastDoneDate = hôm nay, nextDueDate = hôm nay + intervalDays)
+  const nextDueDate = new Date();
+  nextDueDate.setDate(nextDueDate.getDate() + plan.intervalDays);
+  const nextDueDateStr = nextDueDate.toISOString().split("T")[0];
+  
+  plans[planIdx].lastDoneDate = todayStr;
+  plans[planIdx].nextDueDate = nextDueDateStr;
+  plans[planIdx].status = "Đúng hạn";
+  writeData("pmPlans.json", plans);
+  
+  logAction(
+    user,
+    "Kích hoạt bảo trì kế hoạch",
+    `Kích hoạt phiếu sửa chữa ${woCode} từ kế hoạch bảo trì định kỳ ${plan.name}`
+  );
+  
+  res.json({ success: true, workOrder: newWO, plan: plans[planIdx] });
 });
 
 // 5. Executive Dashboard Stats
