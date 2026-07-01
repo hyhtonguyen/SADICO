@@ -412,22 +412,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Subtle Demo Role Switcher */}
-            <div className="flex items-center gap-2 bg-slate-800/80 border border-slate-700/60 p-1 rounded-xl w-full sm:w-auto justify-center">
-              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider pl-2 shrink-0">Giả lập:</span>
-              <select
-                className="border-0 bg-transparent text-slate-300 font-bold text-[11px] focus:outline-none focus:ring-0 cursor-pointer pr-7 py-1 rounded-lg"
-                value={currentUser?.id || ""}
-                onChange={(e) => handleRoleChange(e.target.value)}
-                id="demo-switcher-dropdown"
-              >
-                {users.map((u) => (
-                  <option key={u.id} value={u.id} className="bg-slate-900 text-white font-semibold">
-                    {u.name} ({u.role.split(" ")[0]})
-                  </option>
-                ))}
-              </select>
-            </div>
+
 
             <button
               onClick={() => {
