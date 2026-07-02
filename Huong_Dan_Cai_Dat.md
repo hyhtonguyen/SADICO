@@ -6,7 +6,7 @@ Tài liệu này hướng dẫn chi tiết từng bước từ cấu hình Datab
 
 ## 📌 THÔNG SỐ CẤU HÌNH LIÊN KẾT (YÊU CẦU)
 *   **Database Server:** Microsoft SQL Server 2016 trở lên
-*   **Địa chỉ Local Server của bạn:** `192.168.1.157,1435`
+*   **Địa chỉ SQL Server của bạn:** `192.168.1.157,1435`
 *   **Tên cơ sở dữ liệu:** `SADICO_P1`
 *   **Tài khoản kết nối (SA):** `sa`
 *   **Mật khẩu (Password):** `123456`

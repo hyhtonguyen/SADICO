@@ -147,11 +147,7 @@ CREATE TABLE [dbo].[AuditLogs] (
 );
 GO
 
--- Seed sample data for SADICO testing
-INSERT INTO [dbo].[Devices] ([Id], [Code], [Name], [Model], [Serial], [PurchaseDate], [Value], [Location], [Department], [Status], [LastMaintenance], [CycleDays])
-VALUES 
-('DEV-001', 'DEV-001', N'Máy đóng bao xi măng Haver & Boecker 8 vòi', 'HB-ROTO-8', 'SN-99812-HB', '2022-03-15', 1250000000, N'Khu vực đóng gói xi măng', N'Xưởng đóng bao', N'Đang hoạt động', '2026-05-10', 60),
-('DEV-002', 'DEV-002', N'Hệ thống cấp liệu băng tải xích clinker', 'SADICO-CH-1200', 'SN-2021-SAD-55', '2021-08-20', 750000000, N'Khu vực lò nung clinker', N'Xưởng clinker', N'Đang hoạt động', '2026-06-01', 30);
+-- No seed data; data is loaded from SQL Server tables only.
 `;
 
   const csharpCode = `// ASP.NET Core 9 Model & API Controller Templates

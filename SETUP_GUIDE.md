@@ -6,7 +6,7 @@ This guide provides step-by-step instructions to set up the database, run the ba
 
 ## 📌 CONNECTION CONFIGURATION PARAMETERS (REQUIRED)
 *   **Database Server:** Microsoft SQL Server 2016 or higher
-*   **Your Local Server Address:** `192.168.1.157,1435`
+*   **Your SQL Server Address:** `192.168.1.157,1435`
 *   **Database Name:** `SADICO_P1`
 *   **User ID (SA):** `sa`
 *   **Password:** `123456`
@@ -19,7 +19,7 @@ You need to initialize the table structures and seed default SADICO testing data
 
 1.  Open **SQL Server Management Studio (SSMS)** or Azure Data Studio.
 2.  Connect to your SQL Server engine:
-    *   **Server name:** `192.168.1.157,1435` (or `localhost,1435` if running directly on the local instance).
+    *   **Server name:** `192.168.1.157,1435` (or `localhost,1435` if you are connecting directly to the SQL instance on the same host).
     *   **Authentication:** SQL Server Authentication.
     *   **Login:** `sa`
     *   **Password:** `123456`

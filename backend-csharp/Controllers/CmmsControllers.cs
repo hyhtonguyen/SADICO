@@ -25,19 +25,6 @@ namespace SadicoCmms.Controllers
         public async Task<ActionResult<IEnumerable<User>>> GetUsers()
         {
             var users = await _context.Users.ToListAsync();
-            if (!users.Any())
-            {
-                var defaultRoles = await _context.Roles.ToListAsync();
-                users = new List<User>
-                {
-                    new User { Id = "u1", Username = "codien1", Name = "Nguyễn Văn Hùng", RoleId = defaultRoles.FirstOrDefault(r => r.Id == "codien")?.Id ?? "codien", Role = "Kỹ thuật bảo trì (Cơ điện)", Dept = "Tổ Cơ điện", Password = "123456" },
-                    new User { Id = "u2", Username = "vattu1", Name = "Lê Thị Lan", RoleId = defaultRoles.FirstOrDefault(r => r.Id == "vattu")?.Id ?? "vattu", Role = "Bộ phận Vật tư", Dept = "Phòng Vật tư", Password = "123456" },
-                    new User { Id = "u3", Username = "truongca1", Name = "Trần Minh Đức", RoleId = defaultRoles.FirstOrDefault(r => r.Id == "truongca")?.Id ?? "truongca", Role = "Trưởng ca", Dept = "Ban Quản lý Sản xuất", Password = "123456" },
-                    new User { Id = "u4", Username = "lanhdao1", Name = "Phạm Việt Hoàng", RoleId = defaultRoles.FirstOrDefault(r => r.Id == "lanhdao")?.Id ?? "lanhdao", Role = "Ban lãnh đạo", Dept = "Ban Giám đốc", Password = "123456" }
-                };
-                _context.Users.AddRange(users);
-                await _context.SaveChangesAsync();
-            }
             return Ok(users);
         }
 
@@ -215,18 +202,6 @@ namespace SadicoCmms.Controllers
         public async Task<ActionResult<IEnumerable<Role>>> GetRoles()
         {
             var roles = await _context.Roles.ToListAsync();
-            if (!roles.Any())
-            {
-                roles = new List<Role>
-                {
-                    new Role { Id = "codien", Name = "Kỹ thuật bảo trì (Cơ điện)", CanManageDevices = true, CanManageWorkOrders = true, CanManageParts = true, CanManageMaterials = true, CanManageUsers = false, CanViewAuditLogs = true },
-                    new Role { Id = "vattu", Name = "Bộ phận Vật tư", CanManageDevices = false, CanManageWorkOrders = false, CanManageParts = true, CanManageMaterials = true, CanManageUsers = false, CanViewAuditLogs = true },
-                    new Role { Id = "truongca", Name = "Trưởng ca", CanManageDevices = true, CanManageWorkOrders = true, CanManageParts = false, CanManageMaterials = true, CanManageUsers = false, CanViewAuditLogs = true },
-                    new Role { Id = "lanhdao", Name = "Ban lãnh đạo", CanManageDevices = true, CanManageWorkOrders = true, CanManageParts = true, CanManageMaterials = true, CanManageUsers = true, CanViewAuditLogs = true }
-                };
-                _context.Roles.AddRange(roles);
-                await _context.SaveChangesAsync();
-            }
             return Ok(roles);
         }
 
