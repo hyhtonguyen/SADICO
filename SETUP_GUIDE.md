@@ -6,7 +6,7 @@ This guide provides step-by-step instructions to set up the database, run the ba
 
 ## 📌 CONNECTION CONFIGURATION PARAMETERS (REQUIRED)
 *   **Database Server:** Microsoft SQL Server 2016 or higher
-*   **Your Local Server Address:** `192.168.1.2,1435`
+*   **Your Local Server Address:** `192.168.1.157,1435`
 *   **Database Name:** `SADICO_P1`
 *   **User ID (SA):** `sa`
 *   **Password:** `123456`
@@ -19,7 +19,7 @@ You need to initialize the table structures and seed default SADICO testing data
 
 1.  Open **SQL Server Management Studio (SSMS)** or Azure Data Studio.
 2.  Connect to your SQL Server engine:
-    *   **Server name:** `192.168.1.2,1435` (or `localhost,1435` if running directly on the local instance).
+    *   **Server name:** `192.168.1.157,1435` (or `localhost,1435` if running directly on the local instance).
     *   **Authentication:** SQL Server Authentication.
     *   **Login:** `sa`
     *   **Password:** `123456`
@@ -45,7 +45,7 @@ This backend connects directly to your physical SQL Server using Entity Framewor
     ```json
     {
       "ConnectionStrings": {
-        "DefaultConnection": "Server=192.168.1.2,1435;Database=SADICO_P1;User Id=sa;Password=123456;TrustServerCertificate=True;MultipleActiveResultSets=True"
+        "DefaultConnection": "Server=192.168.1.157,1435;Database=SADICO_P1;User Id=sa;Password=123456;TrustServerCertificate=True;MultipleActiveResultSets=True"
       }
     }
     ```
@@ -72,7 +72,7 @@ For lightweight development with mock JSON state files:
     NODE_ENV=development
     
     # DB configuration variables for reference
-    DB_SERVER="192.168.1.2"
+    DB_SERVER="192.168.1.157"
     DB_PORT=1435
     DB_DATABASE="SADICO_P1"
     DB_USER="sa"
@@ -136,7 +136,7 @@ The system integrates AI to analyze machine error logs, propose solutions, and a
 ### 2. File & Image Storage (MinIO S3 / Cloudinary)
 We recommend hosting images on a dedicated asset server rather than raw Base64 injection to keep your SQL Server lightweight.
 *   **MinIO Configuration (Recommended for Sadico Intranet):**
-    *   Host MinIO container on `192.168.1.2:9000`.
+    *   Host MinIO container on `192.168.1.157:9000`.
     *   Create a bucket named `sadico-cmms-images`.
     *   Add your credentials to `appsettings.json` for automatic upload handling.
 *   **Cloudinary Configuration (Cloud-based storage):**
@@ -157,4 +157,4 @@ Role-Based Access Control is enforced through the login interface. Use these cre
 
 ---
 
-*Good luck with your deployment! If you encounter connection issues, verify your Windows Firewall has port 1435 open on host 192.168.1.2.*
+*Good luck with your deployment! If you encounter connection issues, verify your Windows Firewall has port 1435 open on host 192.168.1.157.*

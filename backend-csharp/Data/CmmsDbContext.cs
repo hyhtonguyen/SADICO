@@ -7,6 +7,7 @@ namespace SadicoCmms.Data
     {
         public CmmsDbContext(DbContextOptions<CmmsDbContext> options) : base(options) { }
 
+        public DbSet<Role> Roles { get; set; }
         public DbSet<User> Users { get; set; }
         public DbSet<Device> Devices { get; set; }
         public DbSet<Part> Parts { get; set; }

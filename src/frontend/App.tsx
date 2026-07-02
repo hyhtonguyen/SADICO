@@ -454,7 +454,7 @@ export default function App() {
               ...(currentUser?.roleDetails?.canViewAuditLogs !== false
                 ? [{ id: "auditLogs", label: "Nhật ký hệ thống", icon: History }]
                 : []),
-              { id: "csharpsql", label: "Tài liệu ASP.NET & SQL", icon: FileCode },
+             // { id: "csharpsql", label: "Tài liệu ASP.NET & SQL", icon: FileCode },
               ...(currentUser?.roleDetails?.canManageUsers || currentUser?.role === "Ban lãnh đạo"
                 ? [{ id: "adminUsers", label: "Quản trị & Phân Quyền", icon: Users }]
                 : [])

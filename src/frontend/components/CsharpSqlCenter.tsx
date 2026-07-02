@@ -13,7 +13,7 @@ export default function CsharpSqlCenter() {
 
   const sqlCode = `-- SQL Server Database DDL Script for SADICO_CMMS
 -- Target database: Microsoft SQL Server 2016+
--- Server connection string: Server=192.168.1.2,1435;Database=SADICO_CMMS;User Id=sa;Password=123456
+-- Server connection string: Server=192.168.1.157,1435;Database=SADICO_CMMS;User Id=sa;Password=123456
 
 USE [master];
 GO
@@ -312,21 +312,21 @@ namespace SadicoCmms.Controllers
 
 1. Thiết lập Database SQL Server:
    - Sử dụng SQL Server Management Studio (SSMS).
-   - Kết nối tới địa chỉ máy chủ: 192.168.1.2, Port: 1435.
+   - Kết nối tới địa chỉ máy chủ: 192.168.1.157, Port: 1435.
    - Chạy tập lệnh SQL trong tab "Kịch bản SQL DDL" để khởi tạo cấu trúc cơ sở dữ liệu và các bảng liên kết ràng buộc toàn vẹn.
 
 2. Cấu hình Connection String trong ASP.NET Core:
    - Mở file 'appsettings.json' trong dự án Backend ASP.NET và khai báo chuỗi kết nối:
    
    "ConnectionStrings": {
-     "DefaultConnection": "Server=192.168.1.2,1435;Database=SADICO_CMMS;User Id=sa;Password=123456;TrustServerCertificate=True;MultipleActiveResultSets=True"
+     "DefaultConnection": "Server=192.168.1.157,1435;Database=SADICO_CMMS;User Id=sa;Password=123456;TrustServerCertificate=True;MultipleActiveResultSets=True"
    }
 
 3. Quản lý Hình ảnh (Cloudinary / MinIO S3):
    - Thay vì lưu trực tiếp Base64 vào database gây phình kích thước, hãy viết một Controller Proxy nhận ảnh từ Client, upload lên dịch vụ MinIO nội bộ hoặc Cloudinary cloud, nhận về URL ảnh dạng HTTPS và lưu URL đó vào trường [ImageBefore]/[ImageAfter] của bảng [WorkOrders].
    - API cấu hình MinIO Client trong ASP.NET 9:
      builder.Services.AddMinio(configure => configure
-         .WithEndpoint("192.168.1.2:9000")
+         .WithEndpoint("192.168.1.157:9000")
          .WithCredentials("ACCESS_KEY", "SECRET_KEY")
          .WithSSL(false));
 
@@ -469,7 +469,7 @@ namespace SadicoCmms.Controllers
               </button>
             </div>
             <div className="bg-indigo-50 border border-indigo-100 text-indigo-900 p-4 rounded-xl mb-4 text-sm leading-relaxed">
-              <strong>💡 Thông tin máy chủ lưu trữ dữ liệu Sadico:</strong> Hệ thống lưu trữ cơ sở dữ liệu trên máy chủ nội bộ <code>192.168.1.2</code> cổng <code>1435</code>. Việc phân quyền vai trò sẽ đồng nhất với token JWT được cấu hình qua Middleware của Web API trên IIS.
+              <strong>💡 Thông tin máy chủ lưu trữ dữ liệu Sadico:</strong> Hệ thống lưu trữ cơ sở dữ liệu trên máy chủ nội bộ <code>192.168.1.157</code> cổng <code>1435</code>. Việc phân quyền vai trò sẽ đồng nhất với token JWT được cấu hình qua Middleware của Web API trên IIS.
             </div>
             <div className="bg-slate-50 p-5 rounded-xl border border-gray-200 text-sm whitespace-pre-wrap leading-relaxed font-sans text-slate-700">
               {deployInstructions}
