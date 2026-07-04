@@ -127,7 +127,6 @@ Giao diện Web Client được xây dựng bằng React 18, Vite và Tailwind C
 ### 1. Dịch vụ Trí tuệ Nhân tạo (Gemini AI API)
 Hệ thống tích hợp AI để tự động phân tích mã lỗi, đề xuất giải pháp sửa chữa và tự động phân loại vật tư dựa trên triệu chứng hỏng hóc.
 *   **Cách lấy API Key:**
-    1.  Truy cập trang [Google AI Studio](https://aistudio.google.com/).
     2.  Đăng nhập bằng tài khoản Google của bạn.
     3.  Nhấp vào **"Get API Key"** và chọn **"Create API Key"**.
     4.  Copy mã khóa thu được (Dạng `AIzaSy...`).

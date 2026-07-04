@@ -123,7 +123,6 @@ For lightweight development with mock JSON state files:
 ### 1. Gemini AI API Key
 The system integrates AI to analyze machine error logs, propose solutions, and auto-classify warehouse materials.
 *   **How to retrieve:**
-    1.  Go to [Google AI Studio](https://aistudio.google.com/).
     2.  Sign in with your Google Account.
     3.  Click **"Get API Key"** and then select **"Create API Key"**.
     4.  Copy the generated key (looks like `AIzaSy...`).
