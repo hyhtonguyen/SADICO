@@ -4744,7 +4744,7 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\ASUS\\.nuget\\packages\\": {}
+    "C:\\Users\\XMTD-IT\\.nuget\\packages\\": {}
   },
   "project": {
     "version": "1.0.0",
@@ -4752,11 +4752,11 @@
       "projectUniqueName": "D:\\SADICO\\backend-csharp\\SadicoCmms.csproj",
       "projectName": "SadicoCmms",
       "projectPath": "D:\\SADICO\\backend-csharp\\SadicoCmms.csproj",
-      "packagesPath": "C:\\Users\\ASUS\\.nuget\\packages\\",
+      "packagesPath": "C:\\Users\\XMTD-IT\\.nuget\\packages\\",
       "outputPath": "D:\\SADICO\\backend-csharp\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
-        "C:\\Users\\ASUS\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        "C:\\Users\\XMTD-IT\\AppData\\Roaming\\NuGet\\NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net9.0"
