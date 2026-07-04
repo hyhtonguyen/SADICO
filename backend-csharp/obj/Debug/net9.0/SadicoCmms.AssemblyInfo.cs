@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("SadicoCmms")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+dab8c38b77e23224ae30093508edb3644bb703e6")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e81a527389fa8721fd9b2d7fd1e2498c38fbecfb")]
 [assembly: System.Reflection.AssemblyProductAttribute("SadicoCmms")]
 [assembly: System.Reflection.AssemblyTitleAttribute("SadicoCmms")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
